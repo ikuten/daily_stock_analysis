@@ -56,7 +56,7 @@ AI 股因某机构报告下跌。
 
     assert "行情时点" in output
     assert "主要指数涨跌分化" in output
-    assert "VIX 20.12" in output
+    assert "最新可用值 20.12" in output
     assert "Reuters" in output
     assert "2026-11-15" in output
     assert "https://example.com/fed-minutes" in output
