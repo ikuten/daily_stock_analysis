@@ -1029,6 +1029,7 @@ Focus on index trend, liquidity, and sector rotation to shape the next-session t
             replacement = heading + "\n\n" + body
             if table_block:
                 replacement += "\n\n" + table_block
+            replacement = replacement.rstrip() + "\n\n"
             text = text[:match.start()] + replacement + text[match.end():]
 
         if english:
@@ -1213,8 +1214,16 @@ Focus on index trend, liquidity, and sector rotation to shape the next-session t
             insert_at = strategy_match.start() if strategy_match else len(text)
             news_section = news_heading + "\n\n" + news_body + "\n\n"
             text = text[:insert_at] + news_section + text[insert_at:]
-        if re.search(strategy_pattern, text):
-            text = re.sub(strategy_pattern, strategy_heading + "\n\n" + strategy_body + "\n\n", text, count=1)
+        strategy_match = re.search(strategy_pattern, text)
+        if strategy_match:
+            # Preserve the report's existing localized heading for compatibility.
+            strategy_heading = strategy_match.group(0).splitlines()[0].strip()
+            text = re.sub(
+                strategy_pattern,
+                strategy_heading + "\n\n" + strategy_body + "\n\n",
+                text,
+                count=1,
+            )
         # Remove numeric claims that cannot be traced to the supplied index
         # snapshot or retrieved news. Keep markdown tables/headings/URLs intact.
         source_material = [str(getattr(overview, "date", "") or "")]
