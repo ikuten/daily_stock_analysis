@@ -1207,6 +1207,12 @@ Focus on index trend, liquidity, and sector rotation to shape the next-session t
         if news_match:
             news_heading = news_match.group(0).splitlines()[0].strip()
             text = re.sub(news_pattern, news_heading + "\n\n" + news_body + "\n\n", text, count=1)
+        else:
+            news_heading = "### Retrieved News" if english else "### 检索到的新闻"
+            strategy_match = re.search(strategy_pattern, text)
+            insert_at = strategy_match.start() if strategy_match else len(text)
+            news_section = news_heading + "\n\n" + news_body + "\n\n"
+            text = text[:insert_at] + news_section + text[insert_at:]
         if re.search(strategy_pattern, text):
             text = re.sub(strategy_pattern, strategy_heading + "\n\n" + strategy_body + "\n\n", text, count=1)
         # Remove numeric claims that cannot be traced to the supplied index
