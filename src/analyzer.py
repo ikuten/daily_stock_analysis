@@ -103,6 +103,8 @@ from src.schemas.decision_scale import (
 )
 from src.schemas.report_schema import AnalysisReportSchema
 from src.market_context import detect_market, get_market_role, get_market_guidelines
+from src.us_index_report_guardrail import apply_us_index_report_guardrail, us_index_system_prompt_rules
+from data_provider.us_index_mapping import is_us_index_code
 from src.services.daily_market_context import format_daily_market_context_prompt_section
 from src.market_phase_prompt import format_market_phase_prompt_section
 from src.market_structure_prompt import format_market_structure_prompt_section
@@ -2725,7 +2727,7 @@ Output strictly in the following JSON format. This is a complete Decision Dashbo
 - All human-readable JSON values must be written in English.
 - Use the common English company name when you are confident; otherwise keep the original listed company name instead of inventing one.
 - This includes `stock_name`, `trend_prediction`, `operation_advice`, `confidence_level`, nested dashboard text, checklist items, and all narrative summaries.
-"""
+""" + (us_index_system_prompt_rules(lang) if is_us_index_code(stock_code) else "")
         if lang == "ko":
             return base_prompt + """
 
@@ -2736,7 +2738,7 @@ Output strictly in the following JSON format. This is a complete Decision Dashbo
 - All human-readable JSON values must be written in Korean (한국어).
 - Use the common Korean or original listed company name when confident; do not invent one.
 - This includes `stock_name`, `trend_prediction`, `operation_advice`, `confidence_level`, nested dashboard text, checklist items, and all narrative summaries.
-"""
+""" + (us_index_system_prompt_rules(lang) if is_us_index_code(stock_code) else "") + (us_index_system_prompt_rules(lang) if is_us_index_code(stock_code) else "")
         return base_prompt + """
 
 ## 输出语言（最高优先级）
@@ -5559,6 +5561,13 @@ Output the complete Decision Dashboard in JSON format."""
                     report_language, en='Technical data', zh='技术面数据', ko='기술적 데이터')),
                 success=True,
             )
+            if is_us_index_code(code):
+                apply_us_index_report_guardrail(result, source_context=context)
+                return populate_decision_action_fields(
+                    result,
+                    explicit_action="watch",
+                    align_with_score=False,
+                )
             return populate_decision_action_fields(
                 result,
                 explicit_action=explicit_action,
