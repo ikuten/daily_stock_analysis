@@ -4276,7 +4276,7 @@ Output strictly in the following JSON format. This is a complete Decision Dashbo
                 _emit_progress(parse_progress, f"{name}：LLM 返回完成，正在解析 JSON")
 
                 # 解析响应
-                result = self._parse_response(response_text, code, name)
+                result = self._parse_response(response_text, code, name, source_context=context)
                 result.raw_response = response_text
                 result.search_performed = bool(news_context)
                 result.market_snapshot = self._build_market_snapshot(context)
@@ -5470,10 +5470,11 @@ Output the complete Decision Dashboard in JSON format."""
         )
 
     def _parse_response(
-        self, 
-        response_text: str, 
-        code: str, 
-        name: str
+        self,
+        response_text: str,
+        code: str,
+        name: str,
+        source_context: Optional[Dict[str, Any]] = None,
     ) -> AnalysisResult:
         """
         解析 Gemini 响应（决策仪表盘版）
@@ -5567,10 +5568,7 @@ Output the complete Decision Dashboard in JSON format."""
             if is_us_index_report_code(code):
                 apply_us_index_report_guardrail(
                     result,
-                    source_context={
-                        "fundamental": getattr(result, "fundamental_context", None) or {},
-                        "market_snapshot": getattr(result, "market_snapshot", None) or {},
-                    },
+                    source_context=source_context or {},
                 )
                 return populate_decision_action_fields(
                     result,
