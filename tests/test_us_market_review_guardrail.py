@@ -26,6 +26,7 @@ VIX 20.12，波动率处于中位。
 | Index | Last | Change % |
 |---|---:|---:|
 | SPX | 7561.67 | -0.40% |
+| Unsupported macro | 123.45 | 9.99% |
 
 ### 三、消息催化
 AI 股因某机构报告下跌。
@@ -70,6 +71,7 @@ AI 股因某机构报告下跌。
     assert "不代表这些事件已被证实为指数涨跌原因" in output
     assert "模型生成的指数点评" not in output
     assert "| Index | Last | Change % |" in output
+    assert "Unsupported macro" not in output
     assert "建议仓位三成" not in output
     assert "27000 止损" not in output
     assert "29000" not in output
