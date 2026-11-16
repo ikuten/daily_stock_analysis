@@ -23,11 +23,18 @@ VIX 20.12，波动率处于中位。
 ### 二、指数结构
 模型生成的指数点评包含未经核实的因果判断。
 
+| Index | Last | Change % |
+|---|---:|---:|
+| SPX | 7561.67 | -0.40% |
+
 ### 三、消息催化
 AI 股因某机构报告下跌。
 
 ### 四、后市观察
 如果收益率突破5.1%，指数可能继续下跌。
+
+### 五、风险提示
+某项未经核实的指标达到6.7%，风险上升。
 
 ### 六、策略判断
 建议仓位三成，跌破 27000 止损，目标价 29000。
@@ -62,10 +69,12 @@ AI 股因某机构报告下跌。
     assert "https://example.com/fed-minutes" in output
     assert "不代表这些事件已被证实为指数涨跌原因" in output
     assert "模型生成的指数点评" not in output
+    assert "| Index | Last | Change % |" in output
     assert "建议仓位三成" not in output
     assert "27000 止损" not in output
     assert "29000" not in output
     assert "5.1%" not in output
+    assert "6.7%" not in output
     assert "具体数字已从正文中省略" in output
     assert "不提供组合仓位比例" in output
     assert "数据边界" in output
