@@ -1011,6 +1011,72 @@ Focus on index trend, liquidity, and sector rotation to shape the next-session t
             text = re.sub(news_pattern, news_heading + "\n\n" + news_body + "\n\n", text, count=1)
         if re.search(strategy_pattern, text):
             text = re.sub(strategy_pattern, strategy_heading + "\n\n" + strategy_body + "\n\n", text, count=1)
+        # Remove numeric claims that cannot be traced to the supplied index
+        # snapshot or retrieved news. Keep markdown tables/headings/URLs intact.
+        source_material = [str(getattr(overview, "date", "") or "")]
+        for index_item in (getattr(overview, "indices", None) or []):
+            source_material.append(str(getattr(index_item, "name", "") or ""))
+            for field_name in (
+                "current", "change", "change_pct", "open", "high", "low",
+                "prev_close", "volume", "amount", "amplitude",
+            ):
+                value = getattr(index_item, field_name, None)
+                if value is not None:
+                    source_material.append(str(value))
+        for item in (news or [])[:8]:
+            normalized = self._normalize_news_item(item)
+            source_material.extend(
+                normalized.get(field_name, "")
+                for field_name in ("title", "snippet", "source", "published_date")
+            )
+
+        allowed_numbers = set()
+        number_pattern = r"(?<![A-Za-z])[-+]?\d[\d,]*(?:\.\d+)?%?"
+        for source_text in source_material:
+            for token in re.findall(number_pattern, source_text or ""):
+                try:
+                    number = float(token.replace(",", "").replace("%", "").replace("+", ""))
+                except ValueError:
+                    continue
+                for precision in (0, 1, 2, 3):
+                    allowed_numbers.add(round(number, precision))
+
+        redacted_numeric_lines = 0
+        safe_lines = []
+        for line in text.splitlines():
+            stripped = line.strip()
+            if (
+                not stripped
+                or stripped.startswith("#")
+                or stripped.startswith("|")
+                or "http://" in stripped
+                or "https://" in stripped
+            ):
+                safe_lines.append(line)
+                continue
+            content_line = re.sub(r"^\s*(?:[-*]\s*)?\d+[.)]\s+", "", line)
+            unsupported_number = False
+            for token in re.findall(number_pattern, content_line):
+                try:
+                    number = float(token.replace(",", "").replace("%", "").replace("+", ""))
+                except ValueError:
+                    continue
+                if not any(round(number, precision) in allowed_numbers for precision in (0, 1, 2, 3)):
+                    unsupported_number = True
+                    break
+            if unsupported_number:
+                redacted_numeric_lines += 1
+                continue
+            safe_lines.append(line)
+        text = "\n".join(safe_lines)
+
+        if redacted_numeric_lines:
+            redaction_note = (
+                "Unsupported numeric claims not found in the supplied market data or retrieved news were omitted."
+                if english
+                else "未能在行情输入或检索新闻中找到依据的具体数字，已从正文中省略。"
+            )
+            data_note += "\n" + redaction_note
         if "Data Boundaries" not in text and "数据边界" not in text:
             text = text.rstrip() + "\n\n" + data_note + "\n"
         return text
