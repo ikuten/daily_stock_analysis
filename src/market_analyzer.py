@@ -356,7 +356,11 @@ class MarketAnalyzer:
     def _get_index_hint(self) -> str:
         if self._get_review_language() == "en":
             if self.region == "us":
-                return "Analyze the key moves in the S&P 500, Nasdaq, Dow, and other major indices."
+                return (
+                    "Analyze the S&P 500 (SPX), Nasdaq-100 (NDX), and Dow separately. "
+                    "Do not confuse Nasdaq-100 (NDX) with Nasdaq Composite (IXIC), "
+                    "and never substitute one index's price, return, constituents, or news for another."
+                )
             if self.region == "hk":
                 return "Analyze the key moves in the HSI, Hang Seng Tech, HSCEI, and other major indices."
             if self.region == "jp":
