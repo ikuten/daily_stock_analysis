@@ -976,16 +976,19 @@ Focus on index trend, liquidity, and sector rotation to shape the next-session t
         if main_indices:
             up_count = sum(1 for _, _, change in main_indices if change > 0)
             down_count = sum(1 for _, _, change in main_indices if change < 0)
-            if up_count == len(main_indices):
+            flat_count = len(main_indices) - up_count - down_count
+            if len(main_indices) < 3:
+                regime = "部分指数快照" if not english else "a partial index snapshot"
+            elif up_count == len(main_indices):
                 regime = "主要指数普涨" if not english else "broadly higher"
             elif down_count == len(main_indices):
                 regime = "主要指数普跌" if not english else "broadly lower"
             else:
                 regime = "主要指数涨跌分化" if not english else "mixed across major indices"
             summary_body = (
-                f"本次最新可用行情快照显示：{regime}（上涨 {up_count} 个、下跌 {down_count} 个）。"
+                f"本次最新可用行情快照显示：{regime}（上涨 {up_count} 个、下跌 {down_count} 个、持平 {flat_count} 个）。"
                 if not english
-                else f"The latest available snapshot shows major indices {regime} ({up_count} higher, {down_count} lower)."
+                else f"The latest available snapshot shows {regime} ({up_count} higher, {down_count} lower, {flat_count} unchanged)."
             )
             index_lines = [
                 f"- **{_index_label(item)}**：{current_value:,.2f}，涨跌幅 {change_value:+.2f}%"
