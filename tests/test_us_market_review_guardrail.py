@@ -5,7 +5,7 @@ from tests.litellm_stub import ensure_litellm_stub
 
 ensure_litellm_stub()
 
-from src.market_analyzer import MarketAnalyzer, MarketOverview
+from src.market_analyzer import MarketAnalyzer, MarketIndex, MarketOverview
 from src.core.market_strategy import get_market_strategy_blueprint
 
 
@@ -15,6 +15,10 @@ def test_us_market_recap_replaces_trading_plan_and_unattributed_news():
     analyzer._get_review_language = lambda: "zh"
 
     report = """## 2026-11-16 大盘复盘
+
+### 一、盘面总览
+10年期美债收益率升至5.1%，导致科技股下跌。
+VIX 20.12，波动率处于中位。
 
 ### 三、消息催化
 AI 股因某机构报告下跌。
@@ -34,7 +38,7 @@ AI 股因某机构报告下跌。
 
     output = analyzer._apply_us_market_review_guardrail(
         report,
-        MarketOverview(date="2026-11-16"),
+        MarketOverview(\n            date="2026-11-16",\n            indices=[MarketIndex(code="VIX", name="VIX恐慌指数", current=20.12)],\n        ),
         news,
     )
 
