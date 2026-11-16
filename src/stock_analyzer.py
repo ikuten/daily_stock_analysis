@@ -700,8 +700,10 @@ class StockTrendAnalyzer:
             elif result.volume_status == VolumeStatus.HEAVY_VOLUME_DOWN:
                 risks.append("⚠️ 放量下跌，注意风险")
         else:
-            # Unknown volume is not a neutral/positive signal; keep it out of scoring.
-            vol_score = 0
+            # Missing volume is unknown: give only a conservative neutral baseline,
+            # never the bullish shrink-volume bonus or bearish heavy-volume penalty.
+            vol_score = 8
+            score += vol_score
 
         # === 支撑评分（10分）===
         if result.support_ma5:
