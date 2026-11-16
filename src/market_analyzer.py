@@ -1018,11 +1018,15 @@ Focus on index trend, liquidity, and sector rotation to shape the next-session t
             source_material.append(str(getattr(index_item, "name", "") or ""))
             for field_name in (
                 "current", "change", "change_pct", "open", "high", "low",
-                "prev_close", "volume", "amount", "amplitude",
+                "prev_close", "amplitude",
             ):
                 value = getattr(index_item, field_name, None)
                 if value is not None:
-                    source_material.append(str(value))
+                    try:
+                        if float(value) != 0.0:
+                            source_material.append(str(value))
+                    except (TypeError, ValueError):
+                        continue
         for item in (news or [])[:8]:
             normalized = self._normalize_news_item(item)
             source_material.extend(
