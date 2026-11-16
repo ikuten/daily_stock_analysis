@@ -2749,7 +2749,7 @@ Output strictly in the following JSON format. This is a complete Decision Dashbo
 - 所有 JSON 键名保持不变。
 - `decision_type` 必须保持为 `buy|hold|sell`。
 - 所有面向用户的人类可读文本值必须使用中文。
-""" + (us_index_system_prompt_rules(lang) if is_us_index_code(stock_code) else "")
+""" + (us_index_system_prompt_rules(lang) if is_us_index_report_code(stock_code) else "")
 
     def _has_channel_config(self, config: Config) -> bool:
         """Check if multi-channel config (channels / YAML / legacy model_list) is active."""
@@ -5564,7 +5564,7 @@ Output the complete Decision Dashboard in JSON format."""
                     report_language, en='Technical data', zh='技术面数据', ko='기술적 데이터')),
                 success=True,
             )
-            if is_us_index_code(code):
+            if is_us_index_report_code(code):
                 apply_us_index_report_guardrail(
                     result,
                     source_context={
