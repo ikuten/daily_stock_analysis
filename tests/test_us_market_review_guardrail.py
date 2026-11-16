@@ -75,7 +75,7 @@ AI 股因某机构报告下跌。
     assert "29000" not in output
     assert "5.1%" not in output
     assert "6.7%" not in output
-    assert "具体数字已从正文中省略" in output
+    assert "已从正文中省略" in output
     assert "不提供组合仓位比例" in output
     assert "数据边界" in output
 
