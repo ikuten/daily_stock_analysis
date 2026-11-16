@@ -2741,7 +2741,7 @@ Output strictly in the following JSON format. This is a complete Decision Dashbo
 - All human-readable JSON values must be written in Korean (한국어).
 - Use the common Korean or original listed company name when confident; do not invent one.
 - This includes `stock_name`, `trend_prediction`, `operation_advice`, `confidence_level`, nested dashboard text, checklist items, and all narrative summaries.
-""" + (us_index_system_prompt_rules(lang) if is_us_index_code(stock_code) else "")
+""" + (us_index_system_prompt_rules(lang) if is_us_index_report_code(stock_code) else "")
         return base_prompt + """
 
 ## 输出语言（最高优先级）
@@ -5565,7 +5565,13 @@ Output the complete Decision Dashboard in JSON format."""
                 success=True,
             )
             if is_us_index_code(code):
-                apply_us_index_report_guardrail(result, source_context=context)
+                apply_us_index_report_guardrail(
+                    result,
+                    source_context={
+                        "fundamental": getattr(result, "fundamental_context", None) or {},
+                        "market_snapshot": getattr(result, "market_snapshot", None) or {},
+                    },
+                )
                 return populate_decision_action_fields(
                     result,
                     explicit_action="watch",
