@@ -103,6 +103,7 @@ class TestGetUsMainIndices(unittest.TestCase):
         def get_symbol(code):
             mapping = {
                 'SPX': ('^GSPC', '标普500指数'),
+                'NDX': ('^NDX', '纳斯达克100指数'),
                 'IXIC': ('^IXIC', '纳斯达克综合指数'),
                 'DJI': ('^DJI', '道琼斯工业指数'),
                 'VIX': ('^VIX', 'VIX恐慌指数'),
@@ -118,6 +119,9 @@ class TestGetUsMainIndices(unittest.TestCase):
         self.assertIsNotNone(result)
         self.assertIsInstance(result, list)
         self.assertGreaterEqual(len(result), 1)
+        result_codes = [item['code'] for item in result]
+        self.assertIn('NDX', result_codes)
+        self.assertIn('IXIC', result_codes)
         for item in result:
             self.assertIn('code', item)
             self.assertIn('name', item)
