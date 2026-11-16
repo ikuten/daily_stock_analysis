@@ -4277,9 +4277,14 @@ Output strictly in the following JSON format. This is a complete Decision Dashbo
 
                 # 解析响应
                 if is_us_index_report_code(code):
-                result = self._parse_response(response_text, code, name, source_context=context)
-            else:
-                result = self._parse_response(response_text, code, name)
+                    result = self._parse_response(
+                        response_text,
+                        code,
+                        name,
+                        source_context=context,
+                    )
+                else:
+                    result = self._parse_response(response_text, code, name)
                 result.raw_response = response_text
                 result.search_performed = bool(news_context)
                 result.market_snapshot = self._build_market_snapshot(context)
