@@ -1165,8 +1165,10 @@ Focus on index trend, liquidity, and sector rotation to shape the next-session t
                     number = float(token.replace(",", "").replace("%", "").replace("+", ""))
                 except ValueError:
                     continue
-                for precision in (0, 1, 2, 3):
+                for precision in (1, 2, 3):
                     allowed_numbers.add(round(number, precision))
+                if number.is_integer():
+                    allowed_numbers.add(number)
 
         redacted_numeric_lines = 0
         safe_lines = []
@@ -1188,11 +1190,14 @@ Focus on index trend, liquidity, and sector rotation to shape the next-session t
                     number = float(token.replace(",", "").replace("%", "").replace("+", ""))
                 except ValueError:
                     continue
-                if not any(
+                supported = any(
                     abs(number - round(number, precision)) < 1e-9
                     and round(number, precision) in allowed_numbers
-                    for precision in (0, 1, 2, 3)
-                ):
+                    for precision in (1, 2, 3)
+                )
+                if number.is_integer() and number in allowed_numbers:
+                    supported = True
+                if not supported:
                     unsupported_number = True
                     break
             if unsupported_number:
