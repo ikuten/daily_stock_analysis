@@ -1587,6 +1587,31 @@ Focus on index trend, liquidity, and sector rotation to shape the next-session t
 
     def _build_output_template_sections(self, review_language: str) -> str:
         """Build LLM output sections according to market data capabilities."""
+        if self.region == "us":
+            if review_language == "en":
+                return """### 3. News Catalysts
+(Connect only dated, attributable news to the supplied index moves. Separate facts from interpretation.)
+
+### 4. Outlook
+(Describe the near-term market regime and the evidence that could change it.)
+
+### 5. Risk Alerts
+(List material risks and clearly state what data is unavailable.)
+
+### 6. Strategy Plan
+(Give a qualitative risk-on / neutral / risk-off assessment and key watchpoints only. Do not provide portfolio position percentages, precise entry/exit levels, stop-losses, price targets, or trading triggers.)"""
+            return """### 三、消息催化
+（只把有明确来源和日期的新闻与已提供指数走势联系起来，区分事实与推断。）
+
+### 四、后市观察
+（概括市场风险状态及可能改变判断的证据。）
+
+### 五、风险提示
+（列出主要风险，并明确说明缺失的数据。）
+
+### 六、策略判断
+（只给出定性的积极/中性/防守判断和观察重点。不得提供组合仓位百分比、精确买卖点、止损位、目标价或短线交易触发点。）"""
+
         if review_language == "en":
             if self.profile.has_market_stats and self.profile.has_sector_rankings:
                 return """### 3. Fund Flows
@@ -1763,6 +1788,27 @@ Concept lagging: {bottom_concepts_text if bottom_concepts_text else "N/A"}"""
                 if data_limits_block
                 else ""
             )
+            if self.region == "us":
+                data_limit_lines.append(
+                    "- The supplied index table contains only the displayed index levels and daily changes. "
+                    "Volume/turnover, valuation, P/E, forward P/E and market breadth are unavailable unless "
+                    "explicitly provided as separate fields."
+                )
+                data_limit_lines.append(
+                    "- Never infer volume contraction/expansion, valuation level, or fund flows from missing data. "
+                    "Missing values mean unknown, not zero."
+                )
+                data_limits_block = "## Data Limits\n" + "\n".join(data_limit_lines)
+            data_boundary_requirement = (
+                "- Evidence rule: do not claim volume, valuation, P/E, forward P/E, or fund-flow signals "
+                "unless the exact metric is explicitly supplied with a usable source/date. Do not invent "
+                "precise price levels or position sizing from incomplete/fallback data.\n"
+                if self.region == "us" else ""
+            )
+            data_boundary_requirement += (
+                "- Respect Data Limits: do not invent or over-interpret unsupported breadth, fund-flow, turnover, participation, or sector-ranking data.\n"
+                if data_limits_block and review_language == "en" else ""
+            )
             market_summary_hint = (
                 "2-3 sentences summarizing overall market tone, index moves, and liquidity."
                 if self.profile.has_market_stats
@@ -1775,6 +1821,24 @@ Concept lagging: {bottom_concepts_text if bottom_concepts_text else "N/A"}"""
                 "- 严格遵守数据边界：未提供涨跌家数、资金流、成交额汇总或板块榜时，不要编造或过度解读。\n"
                 if data_limits_block
                 else ""
+            )
+            if self.region == "us":
+                data_limit_lines.append(
+                    "- 当前指数表只提供明确列出的指数点位和日涨跌幅；除非输入中另有明确字段，"
+                    "否则成交量、成交额、估值、市盈率 PE、远期 PE 和市场宽度均不可用。"
+                )
+                data_limit_lines.append(
+                    "- 不得根据缺失数据推断放量/缩量、估值高低或资金流向；缺失值代表未知，不代表零。"
+                )
+                data_limits_block = "## 数据边界\\n" + "\\n".join(data_limit_lines)
+            data_boundary_requirement = (
+                "- 证据规则：除非明确提供了带可靠来源和日期的具体指标，否则不得判断成交量、估值、"
+                "PE、远期PE或资金流。不得基于不完整/降级数据编造精确点位或仓位比例。\\n"
+                if self.region == "us" else ""
+            )
+            data_boundary_requirement += (
+                "- 严格遵守数据边界：未提供涨跌家数、资金流、成交额汇总或板块榜时，不要编造或过度解读。\\n"
+                if data_limits_block and review_language != "en" else ""
             )
             market_summary_hint = (
                 "2-3句话概括指数、涨跌家数、成交额和情绪温度，明确“强势/偏暖/震荡/偏弱”判断"
