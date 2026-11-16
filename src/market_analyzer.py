@@ -946,6 +946,124 @@ Focus on index trend, liquidity, and sector rotation to shape the next-session t
             lines.insert(2, timing_note)
             text = "\n".join(lines)
 
+        # Rebuild the market summary and index commentary from the structured
+        # snapshot. This removes model-invented causal narratives and signal scores.
+        main_indices = []
+        vix_index = None
+        for index_item in (getattr(overview, "indices", None) or []):
+            code = str(getattr(index_item, "code", "") or "").strip().upper()
+            current = getattr(index_item, "current", None)
+            previous = getattr(index_item, "prev_close", None)
+            change_pct = getattr(index_item, "change_pct", None)
+            try:
+                current_value = float(current)
+                previous_value = float(previous)
+                change_value = float(change_pct)
+            except (TypeError, ValueError):
+                continue
+            if current_value <= 0 or previous_value <= 0:
+                continue
+            if code == "VIX":
+                vix_index = (index_item, current_value, change_value)
+            elif code in {"SPX", "NDX", "IXIC", "DJI"}:
+                main_indices.append((index_item, current_value, change_value))
+
+        def _index_label(item: Any) -> str:
+            code = str(getattr(item, "code", "") or "").strip().upper()
+            name = str(getattr(item, "name", "") or code).strip()
+            return f"{name}（{code}）" if not english else f"{name} ({code})"
+
+        if main_indices:
+            up_count = sum(1 for _, _, change in main_indices if change > 0)
+            down_count = sum(1 for _, _, change in main_indices if change < 0)
+            if up_count == len(main_indices):
+                regime = "主要指数普涨" if not english else "broadly higher"
+            elif down_count == len(main_indices):
+                regime = "主要指数普跌" if not english else "broadly lower"
+            else:
+                regime = "主要指数涨跌分化" if not english else "mixed across major indices"
+            summary_body = (
+                f"本次最新可用行情快照显示：{regime}（上涨 {up_count} 个、下跌 {down_count} 个）。"
+                if not english
+                else f"The latest available snapshot shows major indices {regime} ({up_count} higher, {down_count} lower)."
+            )
+            index_lines = [
+                f"- **{_index_label(item)}**：{current_value:,.2f}，涨跌幅 {change_value:+.2f}%"
+                if not english
+                else f"- **{_index_label(item)}**: {current_value:,.2f}, change {change_value:+.2f}%"
+                for item, current_value, change_value in main_indices
+            ]
+        else:
+            summary_body = (
+                "本次未获取到足够的主要指数行情快照，暂不判断整体市场方向。"
+                if not english
+                else "A sufficient major-index snapshot was not available, so no overall market-direction call is made."
+            )
+            index_lines = [
+                "主要指数数据不完整，暂不提供指数方向判断。"
+                if not english
+                else "Major-index data is incomplete; no index-direction assessment is made."
+            ]
+
+        if vix_index:
+            item, current_value, change_value = vix_index
+            index_lines.append(
+                f"- **VIX**：最新可用值 {current_value:.2f}，涨跌幅 {change_value:+.2f}%"
+                if not english
+                else f"- **VIX**: latest available value {current_value:.2f}, change {change_value:+.2f}%"
+            )
+        index_body = "\\n".join(index_lines)
+
+        def _replace_section(pattern: str, heading: str, body: str, preserve_table: bool = False) -> None:
+            nonlocal text
+            match = re.search(pattern, text)
+            if not match:
+                return
+            table_block = ""
+            if preserve_table:
+                table_match = re.search(r"(?m)^\\|[^\\n]*(?:\\n\\|[^\\n]*)*", match.group(0))
+                if table_match:
+                    table_block = table_match.group(0)
+            replacement = heading + "\\n\\n" + body
+            if table_block:
+                replacement += "\\n\\n" + table_block
+            text = text[:match.start()] + replacement + text[match.end():]
+
+        if english:
+            _replace_section(
+                r"(?ms)^###\\s*1\\.\\s*Market Summary\\s*\\n.*?(?=^###\\s|\\Z)",
+                "### 1. Market Summary",
+                summary_body + "\\n\\nThe summary is descriptive only; it does not attribute index moves to news or provide ETF trading instructions.",
+            )
+            _replace_section(
+                r"(?ms)^###\\s*2\\.\\s*(?:Index Commentary|Major Indices)\\s*\\n.*?(?=^###\\s|\\Z)",
+                "### 2. Index Commentary",
+                index_body + "\\n\\nAll figures refer to the latest available source snapshot.",
+                preserve_table=True,
+            )
+            _replace_section(
+                r"(?ms)^###\\s*4\\.\\s*(?:Outlook|Market Outlook)\\s*\\n.*?(?=^###\\s|\\Z)",
+                "### 4. Outlook",
+                "- Compare SPX, NDX, IXIC, and DJI using the same completed trading session.\\n- Monitor the subsequent VIX direction; a single reading is not a trend.\\n- Discuss macro/news implications only when supported by dated sources; do not infer causation.",
+            )
+        else:
+            _replace_section(
+                r"(?ms)^###\\s*一、(?:盘面总览|市场总结)\\s*\\n.*?(?=^###\\s|\\Z)",
+                "### 一、盘面总览",
+                summary_body + "\\n\\n以上仅描述行情快照，不对涨跌原因作因果归因，也不构成 ETF 买卖指令。",
+            )
+            _replace_section(
+                r"(?ms)^###\\s*二、(?:指数结构|指数点评|主要指数)\\s*\\n.*?(?=^###\\s|\\Z)",
+                "### 二、指数结构",
+                index_body + "\\n\\n以下为同一报告数据源提供的最新可用指数快照。",
+                preserve_table=True,
+            )
+            _replace_section(
+                r"(?ms)^###\\s*四、(?:后市观察|展望)\\s*\\n.*?(?=^###\\s|\\Z)",
+                "### 四、后市观察",
+                "- 对照 SPX、NDX、IXIC 和 DJI 在同一完整交易日的方向，观察指数间分化是否持续。\\n- 观察 VIX 后续变化；单一时点读数不能单独代表风险趋势。\\n- 宏观与新闻只引用带来源和日期的信息，不将其直接归因于指数涨跌。",
+            )
+
         # Do not let generated prose invent or causally attribute headlines.
         items = []
         for item in (news or [])[:8]:
