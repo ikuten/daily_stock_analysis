@@ -976,7 +976,6 @@ Focus on index trend, liquidity, and sector rotation to shape the next-session t
         if main_indices:
             up_count = sum(1 for _, _, change in main_indices if change > 0)
             down_count = sum(1 for _, _, change in main_indices if change < 0)
-            flat_count = len(main_indices) - up_count - down_count
             if len(main_indices) < 3:
                 regime = "部分指数快照" if not english else "a partial index snapshot"
             elif up_count == len(main_indices):
