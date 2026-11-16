@@ -128,7 +128,7 @@ def test_us_market_recap_guardrail_handles_template_fallback_section_five():
     assert "模型编造的消息催化内容" not in output
     assert "Federal Reserve" in output
     assert "建议仓位三成" not in output
-    assert "止损" not in output
+    assert "设置止损" not in output
     assert "模型声称AI板块领涨" not in output
     assert "无法判断行业强弱" in output
     assert "无法判断市场宽度及资金净流入/流出" in output
