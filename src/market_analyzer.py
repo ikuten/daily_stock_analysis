@@ -453,23 +453,26 @@ Focus on KOSPI, KOSDAQ, semiconductor heavyweights, and global technology risk a
 - Neutral: index or heavyweight divergence; keep sizing controlled and wait for confirmation.
 - Risk-off: technology heavyweights weaken or external risk rises; prioritize drawdown control."""
         if self.region == "us" and self._get_review_language() == "zh":
-            return """## 美股市场三段式复盘策略
-聚焦指数趋势、宏观叙事与板块轮动，给出次日风控与仓位框架。
+            return """## 美股市场观察框架
+聚焦指数趋势、波动率与有来源的宏观信息，形成定性市场观察，不生成交易计划。
 
 ### 策略原则
-- 先看标普500、纳斯达克、道琼斯是否同向，确认主线是否一致。
-- 结合宏观与流动性指标，识别风险偏好是修复还是转弱。
-- 将复盘输出映射为“进攻/均衡/防守”动作建议，并给出明确触发失效条件。
+- 分别观察标普500（SPX）、纳斯达克100（NDX）、纳斯达克综合指数（IXIC）和道琼斯，不得混用。
+- 区分行情数据、新闻事实与分析推断；重要新闻必须带来源和日期。
+- 未提供成交量、PE、市场宽度或资金流数据时，明确标记未知，不作推断。
+- 不输出组合仓位、买卖点、止损位、目标价或短线交易触发条件。
 
 ### 分析维度
-- 趋势结构：明确市场处于上冲、震荡还是防守转向，判断是否存在关键支撑位背离。
-- 资金与情绪：区分宏观政策、货币面与波动率对权益风险的影响。
-- 主题线索：识别持续性最强的主题与板块轮动是否形成可交易主线。
+- 趋势结构：仅根据同一完整交易日的指数数据判断方向与分化。
+- 宏观环境：只总结有来源的利率、通胀、美元及美联储信息。
+- 波动率：结合已提供的 VIX 数值描述风险环境，不将相关性直接写成因果关系。
 
-### 行动框架
-- 进攻：主板块联动上行且量能/风险位同步改善。
-- 均衡：指数分化或量能未明显放大，仓位保守执行。
-- 防守：突破失守且波动率抬升时，优先减码并保留反弹可交易性。"""
+### 市场状态
+- 积极：主要指数方向一致，且输入证据支持风险偏好改善。
+- 中性：指数信号分化或关键数据缺失，明确说明未知项。
+- 防守：指数走弱且输入的波动率/宏观数据支持风险上升。
+
+仅作市场观察，不提供投资组合仓位或短线交易指令。"""
         if not (self.region == "cn" and self._get_review_language() == "en"):
             return self.strategy.to_prompt_block()
         return """## Strategy Blueprint: A-share Three-Phase Recap Strategy
@@ -897,14 +900,110 @@ Focus on index trend, liquidity, and sector rotation to shape the next-session t
                 self._log_context(),
                 len(review),
             )
-            # Inject structured data tables into LLM prose sections
-            return self._inject_data_into_review(review, overview, news)
+            # Inject structured data tables, then apply deterministic US-market
+            # output constraints so the LLM cannot reintroduce trading instructions.
+            review = self._inject_data_into_review(review, overview, news)
+            if self.region == "us":
+                review = self._apply_us_market_review_guardrail(review, overview, news)
+            return review
 
         logger.warning(
             "[大盘] %s action=generate_review status=fallback_template reason=empty_llm_response",
             self._log_context(),
         )
         return self._generate_template_review(overview, news)
+
+    def _apply_us_market_review_guardrail(
+        self,
+        review: str,
+        overview: MarketOverview,
+        news: Optional[List] = None,
+    ) -> str:
+        """Replace trade-oriented US output sections with source-grounded observation text."""
+        text = str(review or "")
+        english = self._get_review_language() == "en"
+
+        # The report date is not necessarily the quote's trading date, especially
+        # before the US regular session or on a market holiday.
+        timing_note = (
+            "> Quote timing: figures below are the latest available source values; the report date is not necessarily the market trading date. During pre-market or holidays, use the latest completed session."
+            if english
+            else "> 行情时点：以下为本次抓取到的最新可用行情；报告日期不等于行情交易日期。美股盘前或休市时段，应以最近一个完整交易日为准。"
+        )
+        lines = text.splitlines()
+        if lines and lines[0].lstrip().startswith("#"):
+            lines.insert(1, "")
+            lines.insert(2, timing_note)
+            text = "\n".join(lines)
+
+        # Do not let generated prose invent or causally attribute headlines.
+        items = []
+        for item in (news or [])[:8]:
+            normalized = self._normalize_news_item(item)
+            title = normalized.get("title", "").strip()
+            if not title:
+                continue
+            meta = " / ".join(
+                value for value in (normalized.get("source", "").strip(), normalized.get("published_date", "").strip())
+                if value
+            ) or ("source/date not supplied" if english else "来源/日期未提供")
+            snippet = normalized.get("snippet", "").strip()
+            url = normalized.get("url", "").strip()
+            line = f"- **{title}** ({meta})"
+            if snippet:
+                line += f"\n  {snippet}"
+            if url:
+                line += f"\n  [Source]({url})" if english else f"\n  [来源]({url})"
+            items.append(line)
+
+        if english:
+            news_body = (
+                "The following are retrieved news leads only. They are not proof of causation for index moves.\n\n"
+                + "\n\n".join(items)
+                if items
+                else "No attributable news items with usable headlines were supplied; no event attribution is made."
+            )
+            strategy_body = (
+                "**Market stance:** Describe risk-on, neutral, or risk-off conditions qualitatively from the supplied index and volatility data.\n\n"
+                "**Watchpoints:** Monitor completed-session index direction, VIX, sourced macro releases, and data freshness.\n\n"
+                "No portfolio percentages, entries, exits, stop-losses, price targets, or short-term trading triggers."
+            )
+            data_note = (
+                "### Data Boundaries\n"
+                "The supplied US index dataset does not establish volume, turnover, PE/valuation, market breadth, or capital flows unless those fields are explicitly present. Missing values remain unknown. News claims must be traceable to the dated source items above."
+            )
+            news_pattern = r"(?ms)^###\s*3\.\s*News Catalysts\s*\n.*?(?=^###\s|\Z)"
+            strategy_pattern = r"(?ms)^###\s*6\.\s*Strategy Plan\s*\n.*?(?=^###\s|\Z)"
+            news_heading = "### 3. News Catalysts"
+            strategy_heading = "### 6. Strategy Plan"
+        else:
+            news_body = (
+                "以下仅列出实际检索到的新闻线索，不代表这些事件已被证实为指数涨跌原因。\n\n"
+                + "\n\n".join(items)
+                if items
+                else "未提供具备可用标题的新闻来源，本报告不作事件归因。"
+            )
+            strategy_body = (
+                "**市场状态：** 仅根据已提供的指数方向与波动率，定性描述积极、中性或防守状态。\n\n"
+                "**观察重点：** 关注完整交易日的指数方向、VIX、具备来源的宏观数据及行情时效性。\n\n"
+                "不提供组合仓位比例、精确买卖点、止损位、目标价或短线交易触发点。"
+            )
+            data_note = (
+                "### 数据边界\n"
+                "除非输入明确提供对应字段，否则不能判断成交量、成交额、PE/估值、市场宽度或资金流。缺失数据代表未知。新闻结论必须能追溯到上方带日期和来源的检索结果。"
+            )
+            news_pattern = r"(?ms)^###\s*三、消息催化\s*\n.*?(?=^###\s|\Z)"
+            strategy_pattern = r"(?ms)^###\s*六、策略判断\s*\n.*?(?=^###\s|\Z)"
+            news_heading = "### 三、消息催化"
+            strategy_heading = "### 六、策略判断"
+
+        if re.search(news_pattern, text):
+            text = re.sub(news_pattern, news_heading + "\n\n" + news_body + "\n\n", text, count=1)
+        if re.search(strategy_pattern, text):
+            text = re.sub(strategy_pattern, strategy_heading + "\n\n" + strategy_body + "\n\n", text, count=1)
+        if "Data Boundaries" not in text and "数据边界" not in text:
+            text = text.rstrip() + "\n\n" + data_note + "\n"
+        return text
 
     def _get_analyzer_generation_backend_config_error(self) -> Optional[GenerationError]:
         """Return analyzer backend config errors without relying on dynamic mock attributes."""
