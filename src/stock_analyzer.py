@@ -692,13 +692,16 @@ class StockTrendAnalyzer:
             VolumeStatus.SHRINK_VOLUME_UP: 6,     # 无量上涨较差
             VolumeStatus.HEAVY_VOLUME_DOWN: 0,    # 放量下跌最差
         }
-        vol_score = volume_scores.get(result.volume_status, 8)
-        score += vol_score
-
-        if result.volume_status == VolumeStatus.SHRINK_VOLUME_DOWN:
-            reasons.append("✅ 缩量回调，主力洗盘")
-        elif result.volume_status == VolumeStatus.HEAVY_VOLUME_DOWN:
-            risks.append("⚠️ 放量下跌，注意风险")
+        if result.volume_data_available:
+            vol_score = volume_scores.get(result.volume_status, 8)
+            score += vol_score
+            if result.volume_status == VolumeStatus.SHRINK_VOLUME_DOWN:
+                reasons.append("✅ 缩量回调")
+            elif result.volume_status == VolumeStatus.HEAVY_VOLUME_DOWN:
+                risks.append("⚠️ 放量下跌，注意风险")
+        else:
+            # Unknown volume is not a neutral/positive signal; keep it out of scoring.
+            vol_score = 0
 
         # === 支撑评分（10分）===
         if result.support_ma5:
