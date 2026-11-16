@@ -453,23 +453,26 @@ Focus on KOSPI, KOSDAQ, semiconductor heavyweights, and global technology risk a
 - Neutral: index or heavyweight divergence; keep sizing controlled and wait for confirmation.
 - Risk-off: technology heavyweights weaken or external risk rises; prioritize drawdown control."""
         if self.region == "us" and self._get_review_language() == "zh":
-            return """## 美股市场三段式复盘策略
-聚焦指数趋势、宏观叙事与板块轮动，给出次日风控与仓位框架。
+            return """## 美股市场观察框架
+聚焦指数趋势、波动率与有来源的宏观信息，形成定性市场观察，不生成交易计划。
 
 ### 策略原则
-- 先看标普500、纳斯达克、道琼斯是否同向，确认主线是否一致。
-- 结合宏观与流动性指标，识别风险偏好是修复还是转弱。
-- 将复盘输出映射为“进攻/均衡/防守”动作建议，并给出明确触发失效条件。
+- 分别观察标普500（SPX）、纳斯达克100（NDX）、纳斯达克综合指数（IXIC）和道琼斯，不得混用。
+- 区分行情数据、新闻事实与分析推断；重要新闻必须带来源和日期。
+- 未提供成交量、PE、市场宽度或资金流数据时，明确标记未知，不作推断。
+- 不输出组合仓位、买卖点、止损位、目标价或短线交易触发条件。
 
 ### 分析维度
-- 趋势结构：明确市场处于上冲、震荡还是防守转向，判断是否存在关键支撑位背离。
-- 资金与情绪：区分宏观政策、货币面与波动率对权益风险的影响。
-- 主题线索：识别持续性最强的主题与板块轮动是否形成可交易主线。
+- 趋势结构：仅根据同一完整交易日的指数数据判断方向与分化。
+- 宏观环境：只总结有来源的利率、通胀、美元及美联储信息。
+- 波动率：结合已提供的 VIX 数值描述风险环境，不将相关性直接写成因果关系。
 
-### 行动框架
-- 进攻：主板块联动上行且量能/风险位同步改善。
-- 均衡：指数分化或量能未明显放大，仓位保守执行。
-- 防守：突破失守且波动率抬升时，优先减码并保留反弹可交易性。"""
+### 市场状态
+- 积极：主要指数方向一致，且输入证据支持风险偏好改善。
+- 中性：指数信号分化或关键数据缺失，明确说明未知项。
+- 防守：指数走弱且输入的波动率/宏观数据支持风险上升。
+
+仅作市场观察，不提供投资组合仓位或短线交易指令。"""
         if not (self.region == "cn" and self._get_review_language() == "en"):
             return self.strategy.to_prompt_block()
         return """## Strategy Blueprint: A-share Three-Phase Recap Strategy
@@ -814,7 +817,12 @@ Focus on index trend, liquidity, and sector rotation to shape the next-session t
                 "[大盘] %s action=generate_review status=fallback_template reason=no_analyzer",
                 self._log_context(),
             )
-            return self._generate_template_review(overview, news)
+            fallback_review = self._generate_template_review(overview, news)
+            return (
+                self._apply_us_market_review_guardrail(fallback_review, overview, news)
+                if self.region == "us"
+                else fallback_review
+            )
 
         # 构建 Prompt
         prompt = self._build_review_prompt(overview, news)
@@ -897,14 +905,411 @@ Focus on index trend, liquidity, and sector rotation to shape the next-session t
                 self._log_context(),
                 len(review),
             )
-            # Inject structured data tables into LLM prose sections
-            return self._inject_data_into_review(review, overview, news)
+            # Inject structured data tables, then apply deterministic US-market
+            # output constraints so the LLM cannot reintroduce trading instructions.
+            review = self._inject_data_into_review(review, overview, news)
+            if self.region == "us":
+                review = self._apply_us_market_review_guardrail(review, overview, news)
+            return review
 
         logger.warning(
             "[大盘] %s action=generate_review status=fallback_template reason=empty_llm_response",
             self._log_context(),
         )
-        return self._generate_template_review(overview, news)
+        fallback_review = self._generate_template_review(overview, news)
+        return (
+            self._apply_us_market_review_guardrail(fallback_review, overview, news)
+            if self.region == "us"
+            else fallback_review
+        )
+
+    def _apply_us_market_review_guardrail(
+        self,
+        review: str,
+        overview: MarketOverview,
+        news: Optional[List] = None,
+    ) -> str:
+        """Replace trade-oriented US output sections with source-grounded observation text."""
+        text = str(review or "")
+        english = self._get_review_language() == "en"
+
+        # The report date is not necessarily the quote's trading date, especially
+        # before the US regular session or on a market holiday.
+        timing_note = (
+            "> Quote timing: figures below are the latest available source values; the report date is not necessarily the market trading date. During pre-market or holidays, use the latest completed session."
+            if english
+            else "> 行情时点：以下为本次抓取到的最新可用行情；报告日期不等于行情交易日期。美股盘前或休市时段，应以最近一个完整交易日为准。"
+        )
+        lines = text.splitlines()
+        if lines and lines[0].lstrip().startswith("#"):
+            lines.insert(1, "")
+            lines.insert(2, timing_note)
+            text = "\n".join(lines)
+
+        # Rebuild the market summary and index commentary from the structured
+        # snapshot. This removes model-invented causal narratives and signal scores.
+        main_indices = []
+        vix_index = None
+        for index_item in (getattr(overview, "indices", None) or []):
+            code = str(getattr(index_item, "code", "") or "").strip().upper()
+            current = getattr(index_item, "current", None)
+            previous = getattr(index_item, "prev_close", None)
+            change_pct = getattr(index_item, "change_pct", None)
+            try:
+                current_value = float(current)
+                previous_value = float(previous)
+                change_value = float(change_pct)
+            except (TypeError, ValueError):
+                continue
+            if current_value <= 0 or previous_value <= 0:
+                continue
+            if code == "VIX":
+                vix_index = (index_item, current_value, change_value)
+            elif code in {"SPX", "NDX", "IXIC", "DJI"}:
+                main_indices.append((index_item, current_value, change_value))
+
+        def _index_label(item: Any) -> str:
+            code = str(getattr(item, "code", "") or "").strip().upper()
+            name = str(getattr(item, "name", "") or code).strip()
+            return f"{name}（{code}）" if not english else f"{name} ({code})"
+
+        if main_indices:
+            up_count = sum(1 for _, _, change in main_indices if change > 0)
+            down_count = sum(1 for _, _, change in main_indices if change < 0)
+            if len(main_indices) < 3:
+                regime = "部分指数快照" if not english else "a partial index snapshot"
+            elif up_count == len(main_indices):
+                regime = "主要指数普涨" if not english else "broadly higher"
+            elif down_count == len(main_indices):
+                regime = "主要指数普跌" if not english else "broadly lower"
+            else:
+                regime = "主要指数涨跌分化" if not english else "mixed across major indices"
+            summary_body = (
+                f"本次最新可用行情快照显示：{regime}。"
+                if not english
+                else f"The latest available snapshot shows {regime}."
+            )
+            index_lines = [
+                f"- **{_index_label(item)}**：{current_value:,.2f}，涨跌幅 {change_value:+.2f}%"
+                if not english
+                else f"- **{_index_label(item)}**: {current_value:,.2f}, change {change_value:+.2f}%"
+                for item, current_value, change_value in main_indices
+            ]
+        else:
+            summary_body = (
+                "本次未获取到足够的主要指数行情快照，暂不判断整体市场方向。"
+                if not english
+                else "A sufficient major-index snapshot was not available, so no overall market-direction call is made."
+            )
+            index_lines = [
+                "主要指数数据不完整，暂不提供指数方向判断。"
+                if not english
+                else "Major-index data is incomplete; no index-direction assessment is made."
+            ]
+
+        if vix_index:
+            _, current_value, change_value = vix_index
+            index_lines.append(
+                f"- **VIX**：最新可用值 {current_value:.2f}，涨跌幅 {change_value:+.2f}%"
+                if not english
+                else f"- **VIX**: latest available value {current_value:.2f}, change {change_value:+.2f}%"
+            )
+        index_body = "\n".join(index_lines)
+
+        def _replace_section(pattern: str, heading: str, body: str, preserve_table: bool = False) -> None:
+            nonlocal text
+            match = re.search(pattern, text)
+            if not match:
+                return
+            table_block = ""
+            if preserve_table:
+                table_match = re.search(r"(?m)^\|[^\n]*(?:\n\|[^\n]*)*", match.group(0))
+                if table_match:
+                    table_block = table_match.group(0)
+            replacement = heading + "\n\n" + body
+            if table_block:
+                replacement += "\n\n" + table_block
+            replacement = replacement.rstrip() + "\n\n"
+            text = text[:match.start()] + replacement + text[match.end():]
+
+        if english:
+            _replace_section(
+                r"(?ms)^###\s*1\.\s*Market Summary\s*\n.*?(?=^###\s|\Z)",
+                "### 1. Market Summary",
+                summary_body + "\n\nThe summary is descriptive only; it does not attribute index moves to news or provide ETF trading instructions.",
+            )
+            _replace_section(
+                r"(?ms)^###\s*2\.\s*(?:Index Commentary|Major Indices)\s*\n.*?(?=^###\s|\Z)",
+                "### 2. Index Commentary",
+                index_body + "\n\nAll figures refer to the latest available source snapshot.",
+                preserve_table=True,
+            )
+            _replace_section(
+                r"(?ms)^###\s*4\.\s*(?:Outlook|Market Outlook)\s*\n.*?(?=^###\s|\Z)",
+                "### 4. Outlook",
+                "- Compare SPX, NDX, IXIC, and DJI using the same completed trading session.\n- Monitor the subsequent VIX direction; a single reading is not a trend.\n- Discuss macro/news implications only when supported by dated sources; do not infer causation.",
+            )
+        else:
+            _replace_section(
+                r"(?ms)^###\s*一、(?:盘面总览|市场总结)\s*\n.*?(?=^###\s|\Z)",
+                "### 一、盘面总览",
+                summary_body + "\n\n以上仅描述行情快照，不对涨跌原因作因果归因，也不构成 ETF 买卖指令。",
+            )
+            _replace_section(
+                r"(?ms)^###\s*二、(?:指数结构|指数点评|主要指数)\s*\n.*?(?=^###\s|\Z)",
+                "### 二、指数结构",
+                index_body + "\n\n以下为同一报告数据源提供的最新可用指数快照。",
+                preserve_table=True,
+            )
+            _replace_section(
+                r"(?ms)^###\s*四、(?:后市观察|展望)\s*\n.*?(?=^###\s|\Z)",
+                "### 四、后市观察",
+                "- 对照 SPX、NDX、IXIC 和 DJI 在同一完整交易日的方向，观察指数间分化是否持续。\n- 观察 VIX 后续变化；单一时点读数不能单独代表风险趋势。\n- 宏观与新闻只引用带来源和日期的信息，不将其直接归因于指数涨跌。",
+            )
+
+        # Fallback templates may contain breadth/liquidity and sector sections.
+        # Replace them with what the US snapshot actually supports.
+        top_sector_names = [
+            str(item.get("name", "")).strip()
+            for item in (getattr(overview, "top_sectors", None) or [])[:5]
+            if isinstance(item, dict) and item.get("name")
+        ]
+        bottom_sector_names = [
+            str(item.get("name", "")).strip()
+            for item in (getattr(overview, "bottom_sectors", None) or [])[:5]
+            if isinstance(item, dict) and item.get("name")
+        ]
+        top_concept_names = [
+            str(item.get("name", "")).strip()
+            for item in (getattr(overview, "top_concepts", None) or [])[:5]
+            if isinstance(item, dict) and item.get("name")
+        ]
+        bottom_concept_names = [
+            str(item.get("name", "")).strip()
+            for item in (getattr(overview, "bottom_concepts", None) or [])[:5]
+            if isinstance(item, dict) and item.get("name")
+        ]
+        if english:
+            if top_sector_names or bottom_sector_names or top_concept_names or bottom_concept_names:
+                sector_body = (
+                    f"Industry leaders: {', '.join(top_sector_names) or 'not supplied'}. "
+                    f"Industry laggards: {', '.join(bottom_sector_names) or 'not supplied'}. "
+                    f"Concept leaders: {', '.join(top_concept_names) or 'not supplied'}. "
+                    f"Concept laggards: {', '.join(bottom_concept_names) or 'not supplied'}."
+                )
+            else:
+                sector_body = "No verifiable US sector or industry ranking data was supplied; sector leadership and laggards cannot be assessed."
+            funds_body = (
+                "The supplied US index snapshot does not include comparable market breadth, consolidated turnover, "
+                "or fund-flow data. Net inflows/outflows and market participation cannot be assessed. VIX is a volatility measure, not a fund-flow measure."
+            )
+            _replace_section(
+                r"(?ms)^###\s*3\.\s*Breadth & Liquidity\s*\n.*?(?=^###\s|\Z)",
+                "### 3. Breadth & Liquidity",
+                "Market breadth, consolidated turnover, and fund flows are unavailable in the supplied data; no conclusion is made.",
+            )
+            _replace_section(
+                r"(?ms)^###\s*4\.\s*Sector / Theme Highlights\s*\n.*?(?=^###\s|\Z)",
+                "### 4. Sector / Theme Highlights",
+                sector_body,
+            )
+            _replace_section(
+                r"(?ms)^###\s*4\.\s*Funds & Sentiment\s*\n.*?(?=^###\s|\Z)",
+                "### 4. Funds & Sentiment",
+                funds_body,
+            )
+        else:
+            if top_sector_names or bottom_sector_names or top_concept_names or bottom_concept_names:
+                sector_body = (
+                    f"行业领涨线索：{'、'.join(top_sector_names) or '未提供'}；"
+                    f"行业落后线索：{'、'.join(bottom_sector_names) or '未提供'}；"
+                    f"概念领涨线索：{'、'.join(top_concept_names) or '未提供'}；"
+                    f"概念落后线索：{'、'.join(bottom_concept_names) or '未提供'}。"
+                )
+            else:
+                sector_body = "本次未提供可核验的美股行业/板块涨跌榜，无法判断行业强弱或轮动方向。"
+            funds_body = (
+                "本次美股指数输入未提供可比的市场涨跌家数、成交额汇总或资金流向数据，"
+                "无法判断市场宽度及资金净流入/流出。VIX 反映波动率，不等同于资金流向。"
+            )
+            _replace_section(
+                r"(?ms)^###\s*三、(?:板块主线|热点解读|板块表现)\s*\n.*?(?=^###\s|\Z)",
+                "### 三、板块主线",
+                sector_body,
+            )
+            _replace_section(
+                r"(?ms)^###\s*四、(?:资金与情绪|资金动向)\s*\n.*?(?=^###\s|\Z)",
+                "### 四、资金与情绪",
+                funds_body,
+            )
+
+        # Do not let generated prose invent or causally attribute headlines.
+        items = []
+        for item in (news or [])[:8]:
+            normalized = self._normalize_news_item(item)
+            title = normalized.get("title", "").strip()
+            if not title:
+                continue
+            meta = " / ".join(
+                value for value in (normalized.get("source", "").strip(), normalized.get("published_date", "").strip())
+                if value
+            ) or ("source/date not supplied" if english else "来源/日期未提供")
+            snippet = normalized.get("snippet", "").strip()
+            url = normalized.get("url", "").strip()
+            line = f"- **{title}** ({meta})"
+            if snippet:
+                line += f"\n  {snippet}"
+            if url:
+                line += f"\n  [Source]({url})" if english else f"\n  [来源]({url})"
+            items.append(line)
+
+        if english:
+            news_body = (
+                "The following are retrieved news leads only. They are not proof of causation for index moves.\n\n"
+                + "\n\n".join(items)
+                if items
+                else "No attributable news items with usable headlines were supplied; no event attribution is made."
+            )
+            strategy_body = (
+                "**Market stance:** Describe risk-on, neutral, or risk-off conditions qualitatively from the supplied index and volatility data.\n\n"
+                "**Watchpoints:** Monitor completed-session index direction, VIX, sourced macro releases, and data freshness.\n\n"
+                "No portfolio percentages, entries, exits, stop-losses, price targets, or short-term trading triggers."
+            )
+            data_note = (
+                "### Data Boundaries\n"
+                "The supplied US index dataset does not establish volume, turnover, PE/valuation, market breadth, or capital flows unless those fields are explicitly present. Missing values remain unknown. News claims must be traceable to the dated source items above."
+            )
+            news_pattern = r"(?ms)^###\s*(?:3\.\s*News Catalysts|5\.\s*News Catalysts|V\.\s*News Catalysts)\s*\n.*?(?=^###\s|\Z)"
+            strategy_pattern = r"(?ms)^###\s*(?:6\.\s*Strategy Plan|VI\.\s*Strategy Framework)\s*\n.*?(?=^###\s|\Z)"
+            news_heading = "### 3. News Catalysts"
+            strategy_heading = "### 6. Strategy Plan"
+        else:
+            news_body = (
+                "以下仅列出实际检索到的新闻线索，不代表这些事件已被证实为指数涨跌原因。\n\n"
+                + "\n\n".join(items)
+                if items
+                else "未提供具备可用标题的新闻来源，本报告不作事件归因。"
+            )
+            strategy_body = (
+                "**市场状态：** 仅根据已提供的指数方向与波动率，定性描述积极、中性或防守状态。\n\n"
+                "**观察重点：** 关注完整交易日的指数方向、VIX、具备来源的宏观数据及行情时效性。\n\n"
+                "不提供组合仓位比例、精确买卖点、止损位、目标价或短线交易触发点。"
+            )
+            data_note = (
+                "### 数据边界\n"
+                "除非输入明确提供对应字段，否则不能判断成交量、成交额、PE/估值、市场宽度或资金流。缺失数据代表未知。新闻结论必须能追溯到上方带日期和来源的检索结果。"
+            )
+            news_pattern = r"(?ms)^###\s*(?:三、|五、)(?:消息催化|后市展望)\s*\n.*?(?=^###\s|\Z)"
+            strategy_pattern = r"(?ms)^###\s*六、(?:策略判断|策略框架)\s*\n.*?(?=^###\s|\Z)"
+            news_heading = "### 三、消息催化"
+            strategy_heading = "### 六、策略判断"
+
+        news_match = re.search(news_pattern, text)
+        if news_match:
+            news_heading = news_match.group(0).splitlines()[0].strip()
+            text = re.sub(news_pattern, news_heading + "\n\n" + news_body + "\n\n", text, count=1)
+        else:
+            news_heading = "### Retrieved News" if english else "### 检索到的新闻"
+            strategy_match = re.search(strategy_pattern, text)
+            insert_at = strategy_match.start() if strategy_match else len(text)
+            news_section = news_heading + "\n\n" + news_body + "\n\n"
+            text = text[:insert_at] + news_section + text[insert_at:]
+        strategy_match = re.search(strategy_pattern, text)
+        if strategy_match:
+            # Preserve the report's existing localized heading for compatibility.
+            strategy_heading = strategy_match.group(0).splitlines()[0].strip()
+            text = re.sub(
+                strategy_pattern,
+                strategy_heading + "\n\n" + strategy_body + "\n\n",
+                text,
+                count=1,
+            )
+        # Remove numeric claims that cannot be traced to the supplied index
+        # snapshot or retrieved news. Keep markdown tables/headings/URLs intact.
+        source_material = [str(getattr(overview, "date", "") or "")]
+        for index_item in (getattr(overview, "indices", None) or []):
+            source_material.append(str(getattr(index_item, "name", "") or ""))
+            for field_name in (
+                "current", "change", "change_pct", "open", "high", "low",
+                "prev_close", "amplitude",
+            ):
+                value = getattr(index_item, field_name, None)
+                if value is not None:
+                    try:
+                        numeric_value = float(value)
+                        if numeric_value != 0.0:
+                            source_material.append(str(value))
+                            if field_name in {"change", "change_pct"}:
+                                source_material.append(str(abs(numeric_value)))
+                    except (TypeError, ValueError):
+                        continue
+        for item in (news or [])[:8]:
+            normalized = self._normalize_news_item(item)
+            source_material.extend(
+                normalized.get(field_name, "")
+                for field_name in ("title", "snippet", "source", "published_date")
+            )
+
+        allowed_numbers = set()
+        number_pattern = r"(?<![A-Za-z])[-+]?\d[\d,]*(?:\.\d+)?%?"
+        for source_text in source_material:
+            for token in re.findall(number_pattern, source_text or ""):
+                try:
+                    number = float(token.replace(",", "").replace("%", "").replace("+", ""))
+                except ValueError:
+                    continue
+                for precision in (1, 2, 3):
+                    allowed_numbers.add(round(number, precision))
+                if number.is_integer():
+                    allowed_numbers.add(number)
+
+        redacted_numeric_lines = 0
+        safe_lines = []
+        for line in text.splitlines():
+            stripped = line.strip()
+            if (
+                not stripped
+                or stripped.startswith("#")
+                or "http://" in stripped
+                or "https://" in stripped
+            ):
+                safe_lines.append(line)
+                continue
+            content_line = re.sub(r"^\s*(?:[-*]\s*)?\d+[.)]\s+", "", line)
+            unsupported_number = False
+            for token in re.findall(number_pattern, content_line):
+                try:
+                    number = float(token.replace(",", "").replace("%", "").replace("+", ""))
+                except ValueError:
+                    continue
+                supported = any(
+                    abs(number - round(number, precision)) < 1e-9
+                    and round(number, precision) in allowed_numbers
+                    for precision in (1, 2, 3)
+                )
+                if number.is_integer() and number in allowed_numbers:
+                    supported = True
+                if not supported:
+                    unsupported_number = True
+                    break
+            if unsupported_number:
+                redacted_numeric_lines += 1
+                continue
+            safe_lines.append(line)
+        text = "\n".join(safe_lines)
+
+        if redacted_numeric_lines:
+            redaction_note = (
+                "Unsupported numeric claims not found in the supplied market data or retrieved news were omitted."
+                if english
+                else "未能在行情输入或检索新闻中找到依据的具体数字，已从正文中省略。"
+            )
+            data_note += "\n" + redaction_note
+        if "Data Boundaries" not in text and "数据边界" not in text:
+            text = text.rstrip() + "\n\n" + data_note + "\n"
+        elif redacted_numeric_lines:
+            text = text.rstrip() + "\n\n" + redaction_note + "\n"
+        return text
 
     def _get_analyzer_generation_backend_config_error(self) -> Optional[GenerationError]:
         """Return analyzer backend config errors without relying on dynamic mock attributes."""
@@ -1800,9 +2205,12 @@ Concept lagging: {bottom_concepts_text if bottom_concepts_text else "N/A"}"""
                 )
                 data_limits_block = "## Data Limits\n" + "\n".join(data_limit_lines)
             data_boundary_requirement = (
-                "- Evidence rule: do not claim volume, valuation, P/E, forward P/E, or fund-flow signals "
-                "unless the exact metric is explicitly supplied with a usable source/date. Do not invent "
-                "precise price levels or position sizing from incomplete/fallback data.\n"
+                "- Evidence rule: do not claim volume, valuation, P/E, forward P/E, market breadth, or fund-flow signals "
+                "unless the exact metric is explicitly supplied with a usable source/date. Missing means unknown, not zero. "
+                "Do not invent any numeric macro value, analyst target, index level, or trading statistic absent from the supplied data. "
+                "Do not claim that a news item caused an index move unless the supplied source explicitly establishes that relationship. "
+                "Treat all quote values as the latest available values, not automatically as the report-date close. "
+                "Do not provide portfolio sizing, entries, exits, stop-losses, price targets, or short-term trading triggers.\n"
                 if self.region == "us" else ""
             )
             data_boundary_requirement += (

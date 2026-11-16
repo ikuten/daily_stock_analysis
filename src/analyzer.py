@@ -103,6 +103,11 @@ from src.schemas.decision_scale import (
 )
 from src.schemas.report_schema import AnalysisReportSchema
 from src.market_context import detect_market, get_market_role, get_market_guidelines
+from src.us_index_report_guardrail import (
+    apply_us_index_report_guardrail,
+    is_us_index_report_code,
+    us_index_system_prompt_rules,
+)
 from src.services.daily_market_context import format_daily_market_context_prompt_section
 from src.market_phase_prompt import format_market_phase_prompt_section
 from src.market_structure_prompt import format_market_structure_prompt_section
@@ -2725,7 +2730,7 @@ Output strictly in the following JSON format. This is a complete Decision Dashbo
 - All human-readable JSON values must be written in English.
 - Use the common English company name when you are confident; otherwise keep the original listed company name instead of inventing one.
 - This includes `stock_name`, `trend_prediction`, `operation_advice`, `confidence_level`, nested dashboard text, checklist items, and all narrative summaries.
-"""
+""" + (us_index_system_prompt_rules(lang) if is_us_index_report_code(stock_code) else "")
         if lang == "ko":
             return base_prompt + """
 
@@ -2736,7 +2741,7 @@ Output strictly in the following JSON format. This is a complete Decision Dashbo
 - All human-readable JSON values must be written in Korean (한국어).
 - Use the common Korean or original listed company name when confident; do not invent one.
 - This includes `stock_name`, `trend_prediction`, `operation_advice`, `confidence_level`, nested dashboard text, checklist items, and all narrative summaries.
-"""
+""" + (us_index_system_prompt_rules(lang) if is_us_index_report_code(stock_code) else "")
         return base_prompt + """
 
 ## 输出语言（最高优先级）
@@ -2744,7 +2749,7 @@ Output strictly in the following JSON format. This is a complete Decision Dashbo
 - 所有 JSON 键名保持不变。
 - `decision_type` 必须保持为 `buy|hold|sell`。
 - 所有面向用户的人类可读文本值必须使用中文。
-"""
+""" + (us_index_system_prompt_rules(lang) if is_us_index_report_code(stock_code) else "")
 
     def _has_channel_config(self, config: Config) -> bool:
         """Check if multi-channel config (channels / YAML / legacy model_list) is active."""
@@ -4271,7 +4276,15 @@ Output strictly in the following JSON format. This is a complete Decision Dashbo
                 _emit_progress(parse_progress, f"{name}：LLM 返回完成，正在解析 JSON")
 
                 # 解析响应
-                result = self._parse_response(response_text, code, name)
+                if is_us_index_report_code(code):
+                    result = self._parse_response(
+                        response_text,
+                        code,
+                        name,
+                        source_context=context,
+                    )
+                else:
+                    result = self._parse_response(response_text, code, name)
                 result.raw_response = response_text
                 result.search_performed = bool(news_context)
                 result.market_snapshot = self._build_market_snapshot(context)
@@ -5465,10 +5478,11 @@ Output the complete Decision Dashboard in JSON format."""
         )
 
     def _parse_response(
-        self, 
-        response_text: str, 
-        code: str, 
-        name: str
+        self,
+        response_text: str,
+        code: str,
+        name: str,
+        source_context: Optional[Dict[str, Any]] = None,
     ) -> AnalysisResult:
         """
         解析 Gemini 响应（决策仪表盘版）
@@ -5559,6 +5573,16 @@ Output the complete Decision Dashboard in JSON format."""
                     report_language, en='Technical data', zh='技术面数据', ko='기술적 데이터')),
                 success=True,
             )
+            if is_us_index_report_code(code):
+                apply_us_index_report_guardrail(
+                    result,
+                    source_context=source_context or {},
+                )
+                return populate_decision_action_fields(
+                    result,
+                    explicit_action="watch",
+                    align_with_score=False,
+                )
             return populate_decision_action_fields(
                 result,
                 explicit_action=explicit_action,

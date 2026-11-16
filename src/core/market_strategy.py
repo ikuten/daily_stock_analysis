@@ -87,45 +87,46 @@ CN_BLUEPRINT = MarketStrategyBlueprint(
 US_BLUEPRINT = MarketStrategyBlueprint(
     region="us",
     title="US Market Regime Strategy",
-    positioning="Focus on index trend, macro narrative, and sector rotation to define next-session risk posture.",
+    positioning="Describe the broad US equity risk regime from verified index, volatility, and macro data; this is a market observation, not a trading plan.",
     principles=[
-        "Read market regime from S&P 500, Nasdaq, and Dow alignment first.",
-        "Separate beta move from theme-driven alpha rotation.",
-        "Translate recap into actionable risk-on/risk-off stance with clear invalidation points.",
+        "Read S&P 500, Nasdaq-100, Nasdaq Composite, and Dow separately; never substitute one index for another.",
+        "Separate observed data from interpretation and cite the supplied source/date for material news.",
+        "Do not infer volume, valuation, breadth, or capital flows when the corresponding source fields are absent.",
+        "Do not provide portfolio sizing, entries, exits, stop-losses, price targets, or short-term trading triggers.",
     ],
     dimensions=[
         StrategyDimension(
             name="Trend Regime",
-            objective="Classify the market as momentum, range, or risk-off.",
+            objective="Classify the broad market as advancing, range-bound, mixed, or defensive using supplied index closes.",
             checkpoints=[
-                "Are SPX/NDX/DJI directionally aligned",
-                "Did volume confirm the move",
-                "Are key index levels reclaimed or lost",
+                "Are SPX, NDX, IXIC, and DJI directionally aligned",
+                "Is VIX rising or falling based on supplied values",
+                "Are index moves consistent across the same completed trading session",
             ],
         ),
         StrategyDimension(
             name="Macro & Flows",
-            objective="Map policy/rates narrative into equity risk appetite.",
+            objective="Summarize only sourced policy, rates, inflation, and currency information.",
             checkpoints=[
-                "Treasury yield and USD implications",
-                "Breadth and leadership concentration",
-                "Defensive vs growth factor rotation",
+                "Treasury yield and USD data with explicit source/date",
+                "Fed communication and scheduled macro releases",
+                "Distinguish confirmed facts from possible market implications",
             ],
         ),
         StrategyDimension(
             name="Sector Themes",
-            objective="Identify persistent leaders and vulnerable laggards.",
+            objective="Describe sourced sector and earnings themes without asserting unsupported index causality.",
             checkpoints=[
-                "AI/semiconductor/software trend persistence",
-                "Energy/financials sensitivity to macro data",
-                "Volatility signals from VIX and large-cap earnings",
+                "AI/semiconductor/software news with identifiable source and date",
+                "Energy/financials sensitivity only when supported by supplied evidence",
+                "Volatility context from VIX and dated market data",
             ],
         ),
     ],
     action_framework=[
-        "Risk-on: broad index breakout with expanding participation.",
-        "Neutral: mixed index signals; focus on selective relative strength.",
-        "Risk-off: failed breakouts and rising volatility; prioritize capital preservation.",
+        "Risk-on: broad indices advance together and the supplied evidence supports improving risk appetite.",
+        "Neutral: index signals are mixed or material evidence is unavailable; describe what remains unknown.",
+        "Risk-off: broad indices weaken and supplied volatility/macro evidence confirms elevated risk.",
     ],
 )
 
