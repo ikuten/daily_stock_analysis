@@ -87,3 +87,39 @@ def test_us_strategy_blueprint_has_no_stock_style_execution_rules():
     assert "price targets" in prompt
     assert "volume confirm the move" not in prompt
     assert "clear invalidation points" not in prompt
+
+
+
+def test_us_market_recap_guardrail_handles_template_fallback_section_five():
+    analyzer = object.__new__(MarketAnalyzer)
+    analyzer.region = "us"
+    analyzer._get_review_language = lambda: "zh"
+    report = """## US market recap
+
+### 五、消息催化
+模型编造的消息催化内容。
+
+### 六、策略框架
+建议仓位三成并设置止损。
+"""
+    news = [
+        {
+            "title": "FOMC minutes published",
+            "snippet": "The committee discussed its policy outlook.",
+            "source": "Federal Reserve",
+            "published_date": "2026-11-15",
+            "url": "https://example.com/minutes",
+        }
+    ]
+
+    output = analyzer._apply_us_market_review_guardrail(
+        report,
+        MarketOverview(date="2026-11-16"),
+        news,
+    )
+
+    assert "### 五、消息催化" in output
+    assert "模型编造的消息催化内容" not in output
+    assert "Federal Reserve" in output
+    assert "建议仓位三成" not in output
+    assert "止损" not in output
