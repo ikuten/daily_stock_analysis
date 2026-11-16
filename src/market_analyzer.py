@@ -1215,6 +1215,8 @@ Focus on index trend, liquidity, and sector rotation to shape the next-session t
             data_note += "\n" + redaction_note
         if "Data Boundaries" not in text and "数据边界" not in text:
             text = text.rstrip() + "\n\n" + data_note + "\n"
+        elif redacted_numeric_lines:
+            text = text.rstrip() + "\n\n" + redaction_note + "\n"
         return text
 
     def _get_analyzer_generation_backend_config_error(self) -> Optional[GenerationError]:
