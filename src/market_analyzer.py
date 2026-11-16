@@ -1899,9 +1899,12 @@ Concept lagging: {bottom_concepts_text if bottom_concepts_text else "N/A"}"""
                 )
                 data_limits_block = "## Data Limits\n" + "\n".join(data_limit_lines)
             data_boundary_requirement = (
-                "- Evidence rule: do not claim volume, valuation, P/E, forward P/E, or fund-flow signals "
-                "unless the exact metric is explicitly supplied with a usable source/date. Do not invent "
-                "precise price levels or position sizing from incomplete/fallback data.\n"
+                "- Evidence rule: do not claim volume, valuation, P/E, forward P/E, market breadth, or fund-flow signals "
+                "unless the exact metric is explicitly supplied with a usable source/date. Missing means unknown, not zero. "
+                "Do not invent any numeric macro value, analyst target, index level, or trading statistic absent from the supplied data. "
+                "Do not claim that a news item caused an index move unless the supplied source explicitly establishes that relationship. "
+                "Treat all quote values as the latest available values, not automatically as the report-date close. "
+                "Do not provide portfolio sizing, entries, exits, stop-losses, price targets, or short-term trading triggers.\\n"
                 if self.region == "us" else ""
             )
             data_boundary_requirement += (
