@@ -406,7 +406,11 @@ class StockTrendAnalyzer:
         if result.ma5 > 0:
             result.bias_ma5 = (price - result.ma5) / result.ma5 * 100
         if result.ma10 > 0:
-            result.bias_ma10 = (price - result.ma10) / result.ma10    def _analyze_volume(self, df: pd.DataFrame, result: TrendAnalysisResult) -> None:
+            result.bias_ma10 = (price - result.ma10) / result.ma10 * 100
+        if result.ma20 > 0:
+            result.bias_ma20 = (price - result.ma20) / result.ma20 * 100
+    
+    def _analyze_volume(self, df: pd.DataFrame, result: TrendAnalysisResult) -> None:
         """Analyze volume only when the latest bar and all five comparison bars are valid."""
         if "volume" not in df.columns or len(df) < 6:
             result.volume_status = VolumeStatus.NORMAL
@@ -417,7 +421,6 @@ class StockTrendAnalyzer:
 
         recent = pd.to_numeric(df["volume"].iloc[-6:], errors="coerce")
         values = recent.to_numpy(dtype=float)
-        # A missing/zero volume must never be interpreted as a shrink-volume signal.
         if not np.isfinite(values).all() or (values <= 0).any():
             result.volume_status = VolumeStatus.NORMAL
             result.volume_ratio_5d = 0.0
@@ -436,11 +439,11 @@ class StockTrendAnalyzer:
         latest = df.iloc[-1]
         result.volume_ratio_5d = float(values[-1] / vol_5d_avg)
         result.volume_data_available = True
-
         prev_close = float(df.iloc[-2]["close"])
         latest_close = float(latest["close"])
         if not np.isfinite(prev_close) or prev_close <= 0 or not np.isfinite(latest_close):
             result.volume_status = VolumeStatus.NORMAL
+            result.volume_data_available = False
             result.volume_trend = "价格数据无效，未纳入量价判断"
             return
         price_change = (latest_close - prev_close) / prev_close * 100
