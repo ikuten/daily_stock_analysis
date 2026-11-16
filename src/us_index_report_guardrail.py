@@ -136,6 +136,10 @@ def apply_us_index_report_guardrail(result: Any, source_context: Optional[Dict[s
         "turnover_rate": None,
         "volume_meaning": unknown_volume,
     }
+    price_position = data_perspective.get("price_position")
+    if isinstance(price_position, dict):
+        price_position.pop("support_level", None)
+        price_position.pop("resistance_level", None)
 
     pe_value = _find_numeric_metric(
         source_context or {},
@@ -153,6 +157,9 @@ def apply_us_index_report_guardrail(result: Any, source_context: Optional[Dict[s
     dashboard["action_checklist"] = normalized_checklist
 
     phase = dashboard.get("phase_decision")
+    if not isinstance(phase, dict):
+        phase = {}
+        dashboard["phase_decision"] = phase
     if isinstance(phase, dict):
         phase["watch_conditions"] = (
             ["关注指数中期趋势、VIX 波动率及利率环境的变化。", "仅在数据日期、数据源和指标口径明确时更新判断。"]
