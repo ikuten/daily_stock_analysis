@@ -6,7 +6,21 @@ from __future__ import annotations
 import math
 from typing import Any, Dict, Iterable, Optional
 
-from data_provider.us_index_mapping import is_us_index_code
+_US_INDEX_CODES = frozenset({
+    "SPX", "^GSPC", "GSPC",
+    "DJI", "^DJI", "DJIA",
+    "IXIC", "^IXIC", "NASDAQ",
+    "NDX", "^NDX",
+    "VIX", "^VIX",
+    "RUT", "^RUT",
+})
+
+
+def is_us_index_report_code(code: Any) -> bool:
+    """Recognize supported US index aliases without importing data_provider."""
+    return str(code or "").strip().upper() in _US_INDEX_CODES
+
+
 
 
 def _is_number(value: Any) -> bool:
@@ -66,7 +80,7 @@ This symbol is a market index or volatility index, not an individual stock.
 
 def apply_us_index_report_guardrail(result: Any, source_context: Optional[Dict[str, Any]] = None) -> Any:
     """Normalize a US index AnalysisResult before report consumers see it."""
-    if result is None or not is_us_index_code(getattr(result, "code", None)):
+    if result is None or not is_us_index_report_code(getattr(result, "code", None)):
         return result
 
     language = str(getattr(result, "report_language", "zh") or "zh").lower()
