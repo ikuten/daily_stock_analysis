@@ -105,7 +105,7 @@ US_BLUEPRINT = MarketStrategyBlueprint(
             ],
         ),
         StrategyDimension(
-            name="Macro Context",
+            name="Macro & Flows",
             objective="Summarize only sourced policy, rates, inflation, and currency information.",
             checkpoints=[
                 "Treasury yield and USD data with explicit source/date",
