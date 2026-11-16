@@ -1103,17 +1103,17 @@ Focus on index trend, liquidity, and sector rotation to shape the next-session t
                 "or fund-flow data. Net inflows/outflows and market participation cannot be assessed. VIX is a volatility measure, not a fund-flow measure."
             )
             _replace_section(
-                r"(?ms)^###\\s*3\\.\\s*Breadth & Liquidity\\s*\\n.*?(?=^###\\s|\\Z)",
+                r"(?ms)^###\s*3\.\s*Breadth & Liquidity\s*\n.*?(?=^###\s|\Z)",
                 "### 3. Breadth & Liquidity",
                 "Market breadth, consolidated turnover, and fund flows are unavailable in the supplied data; no conclusion is made.",
             )
             _replace_section(
-                r"(?ms)^###\\s*4\\.\\s*Sector / Theme Highlights\\s*\\n.*?(?=^###\\s|\\Z)",
+                r"(?ms)^###\s*4\.\s*Sector / Theme Highlights\s*\n.*?(?=^###\s|\Z)",
                 "### 4. Sector / Theme Highlights",
                 sector_body,
             )
             _replace_section(
-                r"(?ms)^###\\s*4\\.\\s*Funds & Sentiment\\s*\\n.*?(?=^###\\s|\\Z)",
+                r"(?ms)^###\s*4\.\s*Funds & Sentiment\s*\n.*?(?=^###\s|\Z)",
                 "### 4. Funds & Sentiment",
                 funds_body,
             )
@@ -1132,12 +1132,12 @@ Focus on index trend, liquidity, and sector rotation to shape the next-session t
                 "无法判断市场宽度及资金净流入/流出。VIX 反映波动率，不等同于资金流向。"
             )
             _replace_section(
-                r"(?ms)^###\\s*三、(?:板块主线|热点解读|板块表现)\\s*\\n.*?(?=^###\\s|\\Z)",
+                r"(?ms)^###\s*三、(?:板块主线|热点解读|板块表现)\s*\n.*?(?=^###\s|\Z)",
                 "### 三、板块主线",
                 sector_body,
             )
             _replace_section(
-                r"(?ms)^###\\s*四、(?:资金与情绪|资金动向)\\s*\\n.*?(?=^###\\s|\\Z)",
+                r"(?ms)^###\s*四、(?:资金与情绪|资金动向)\s*\n.*?(?=^###\s|\Z)",
                 "### 四、资金与情绪",
                 funds_body,
             )
