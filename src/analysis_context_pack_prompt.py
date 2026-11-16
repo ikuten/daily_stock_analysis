@@ -360,7 +360,7 @@ def _data_limitation_lines(payload: Dict[str, Any], *, lang: str) -> List[str]:
         )
         lines.append(
             "- 证据规则：只有当成交量、量比、换手率、市盈率 PE 或远期 PE 这一具体指标"
-            "确实存在且来源、时间戳可用时，才允许作出对应判断。缺失或 N/A 表示未知，绝不等于零。"
+            "确实存在且来源、时间戳可用时，才允许作出对应判断。缺失值表示未知，绝不等于零。"
         )
         lines.append(
             "- 降级数据规则：行情或日线为 fallback、stale、partial、estimated 或 missing 时，"
