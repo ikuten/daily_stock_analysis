@@ -38,7 +38,10 @@ AI 股因某机构报告下跌。
 
     output = analyzer._apply_us_market_review_guardrail(
         report,
-        MarketOverview(\n            date="2026-11-16",\n            indices=[MarketIndex(code="VIX", name="VIX恐慌指数", current=20.12)],\n        ),
+        MarketOverview(
+            date="2026-11-16",
+            indices=[MarketIndex(code="VIX", name="VIX恐慌指数", current=20.12)],
+        ),
         news,
     )
 
@@ -50,6 +53,9 @@ AI 股因某机构报告下跌。
     assert "建议仓位三成" not in output
     assert "27000 止损" not in output
     assert "29000" not in output
+    assert "5.1%" not in output
+    assert "VIX 20.12" in output
+    assert "具体数字已从正文中省略" in output
     assert "不提供组合仓位比例" in output
     assert "数据边界" in output
 
