@@ -12,6 +12,8 @@ import unittest
 from unittest.mock import MagicMock, patch
 import pandas as pd
 
+from src.core.market_profile import US_PROFILE
+
 # 在导入 data_provider 前 mock 可能缺失的依赖，避免环境差异导致测试无法运行
 if 'fake_useragent' not in sys.modules:
     sys.modules['fake_useragent'] = MagicMock()
@@ -103,6 +105,7 @@ class TestGetUsMainIndices(unittest.TestCase):
         def get_symbol(code):
             mapping = {
                 'SPX': ('^GSPC', '标普500指数'),
+                'NDX': ('^NDX', '纳斯达克100指数'),
                 'IXIC': ('^IXIC', '纳斯达克综合指数'),
                 'DJI': ('^DJI', '道琼斯工业指数'),
                 'VIX': ('^VIX', 'VIX恐慌指数'),
@@ -118,6 +121,9 @@ class TestGetUsMainIndices(unittest.TestCase):
         self.assertIsNotNone(result)
         self.assertIsInstance(result, list)
         self.assertGreaterEqual(len(result), 1)
+        result_codes = [item['code'] for item in result]
+        self.assertIn('NDX', result_codes)
+        self.assertIn('IXIC', result_codes)
         for item in result:
             self.assertIn('code', item)
             self.assertIn('name', item)
@@ -191,6 +197,14 @@ class TestGetUsMainIndices(unittest.TestCase):
         self.assertIsNotNone(result)
         self.assertEqual(len(result), 1)
         self.assertEqual(result[0]['code'], 'SPX')
+
+
+class TestUsMarketProfile(unittest.TestCase):
+    def test_market_review_prompt_distinguishes_ndx_from_ixic(self):
+        hint = US_PROFILE.prompt_index_hint
+        self.assertIn("Nasdaq-100/NDX", hint)
+        self.assertIn("Nasdaq Composite/IXIC", hint)
+        self.assertTrue(any("Nasdaq-100 NDX" in query for query in US_PROFILE.news_queries))
 
 
 if __name__ == '__main__':

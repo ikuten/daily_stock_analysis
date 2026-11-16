@@ -104,8 +104,9 @@ class TrendAnalysisResult:
     
     # 量能分析
     volume_status: VolumeStatus = VolumeStatus.NORMAL
-    volume_ratio_5d: float = 0.0     # 当日成交量/5日均量
+    volume_ratio_5d: float = 0.0     # 当日成交量/5日均量；不可用时为 0
     volume_trend: str = ""           # 量能趋势描述
+    volume_data_available: bool = False
     
     # 支撑压力
     support_ma5: bool = False        # MA5 是否构成支撑
@@ -150,6 +151,7 @@ class TrendAnalysisResult:
             'volume_status': self.volume_status.value,
             'volume_ratio_5d': self.volume_ratio_5d,
             'volume_trend': self.volume_trend,
+            'volume_data_available': self.volume_data_available,
             'support_ma5': self.support_ma5,
             'support_ma10': self.support_ma10,
             'buy_signal': self.buy_signal.value,
@@ -409,43 +411,61 @@ class StockTrendAnalyzer:
             result.bias_ma20 = (price - result.ma20) / result.ma20 * 100
     
     def _analyze_volume(self, df: pd.DataFrame, result: TrendAnalysisResult) -> None:
-        """
-        分析量能
-        
-        偏好：缩量回调 > 放量上涨 > 缩量上涨 > 放量下跌
-        """
-        if len(df) < 5:
+        """Analyze volume only when the latest bar and all five comparison bars are valid."""
+        if "volume" not in df.columns or len(df) < 6:
+            result.volume_status = VolumeStatus.NORMAL
+            result.volume_ratio_5d = 0.0
+            result.volume_data_available = False
+            result.volume_trend = "成交量数据缺失或不足，未纳入量能判断"
             return
-        
+
+        recent = pd.to_numeric(df["volume"].iloc[-6:], errors="coerce")
+        values = recent.to_numpy(dtype=float)
+        if not np.isfinite(values).all() or (values <= 0).any():
+            result.volume_status = VolumeStatus.NORMAL
+            result.volume_ratio_5d = 0.0
+            result.volume_data_available = False
+            result.volume_trend = "成交量数据不完整或无效，未纳入量能判断"
+            return
+
+        vol_5d_avg = float(recent.iloc[:-1].mean())
+        if not np.isfinite(vol_5d_avg) or vol_5d_avg <= 0:
+            result.volume_status = VolumeStatus.NORMAL
+            result.volume_ratio_5d = 0.0
+            result.volume_data_available = False
+            result.volume_trend = "五日成交量基准不可用，未纳入量能判断"
+            return
+
         latest = df.iloc[-1]
-        vol_5d_avg = df['volume'].iloc[-6:-1].mean()
-        
-        if vol_5d_avg > 0:
-            result.volume_ratio_5d = float(latest['volume']) / vol_5d_avg
-        
-        # 判断价格变化
-        prev_close = df.iloc[-2]['close']
-        price_change = (latest['close'] - prev_close) / prev_close * 100
-        
-        # 量能状态判断
+        result.volume_ratio_5d = float(values[-1] / vol_5d_avg)
+        result.volume_data_available = True
+        prev_close = float(df.iloc[-2]["close"])
+        latest_close = float(latest["close"])
+        if not np.isfinite(prev_close) or prev_close <= 0 or not np.isfinite(latest_close):
+            result.volume_status = VolumeStatus.NORMAL
+            result.volume_data_available = False
+            result.volume_trend = "价格数据无效，未纳入量价判断"
+            return
+        price_change = (latest_close - prev_close) / prev_close * 100
+
         if result.volume_ratio_5d >= self.VOLUME_HEAVY_RATIO:
             if price_change > 0:
                 result.volume_status = VolumeStatus.HEAVY_VOLUME_UP
-                result.volume_trend = "放量上涨，多头力量强劲"
+                result.volume_trend = "放量上涨"
             else:
                 result.volume_status = VolumeStatus.HEAVY_VOLUME_DOWN
-                result.volume_trend = "放量下跌，注意风险"
+                result.volume_trend = "放量下跌"
         elif result.volume_ratio_5d <= self.VOLUME_SHRINK_RATIO:
             if price_change > 0:
                 result.volume_status = VolumeStatus.SHRINK_VOLUME_UP
-                result.volume_trend = "缩量上涨，上攻动能不足"
+                result.volume_trend = "缩量上涨"
             else:
                 result.volume_status = VolumeStatus.SHRINK_VOLUME_DOWN
-                result.volume_trend = "缩量回调，洗盘特征明显（好）"
+                result.volume_trend = "缩量回调"
         else:
             result.volume_status = VolumeStatus.NORMAL
             result.volume_trend = "量能正常"
-    
+
     def _analyze_support_resistance(self, df: pd.DataFrame, result: TrendAnalysisResult) -> None:
         """
         分析支撑压力位
@@ -672,13 +692,18 @@ class StockTrendAnalyzer:
             VolumeStatus.SHRINK_VOLUME_UP: 6,     # 无量上涨较差
             VolumeStatus.HEAVY_VOLUME_DOWN: 0,    # 放量下跌最差
         }
-        vol_score = volume_scores.get(result.volume_status, 8)
-        score += vol_score
-
-        if result.volume_status == VolumeStatus.SHRINK_VOLUME_DOWN:
-            reasons.append("✅ 缩量回调，主力洗盘")
-        elif result.volume_status == VolumeStatus.HEAVY_VOLUME_DOWN:
-            risks.append("⚠️ 放量下跌，注意风险")
+        if result.volume_data_available:
+            vol_score = volume_scores.get(result.volume_status, 8)
+            score += vol_score
+            if result.volume_status == VolumeStatus.SHRINK_VOLUME_DOWN:
+                reasons.append("✅ 缩量回调")
+            elif result.volume_status == VolumeStatus.HEAVY_VOLUME_DOWN:
+                risks.append("⚠️ 放量下跌，注意风险")
+        else:
+            # Missing volume is unknown: give only a conservative neutral baseline,
+            # never the bullish shrink-volume bonus or bearish heavy-volume penalty.
+            vol_score = 8
+            score += vol_score
 
         # === 支撑评分（10分）===
         if result.support_ma5:
@@ -777,7 +802,7 @@ class StockTrendAnalyzer:
             f"   MA20: {result.ma20:.2f} (乖离 {result.bias_ma20:+.2f}%)",
             f"",
             f"📊 量能分析: {result.volume_status.value}",
-            f"   量比(vs5日): {result.volume_ratio_5d:.2f}",
+            f"   量比(vs5日): {result.volume_ratio_5d:.2f}" if result.volume_data_available else "   量比(vs5日): N/A",
             f"   量能趋势: {result.volume_trend}",
             f"",
             f"📈 MACD指标: {result.macd_status.value}",

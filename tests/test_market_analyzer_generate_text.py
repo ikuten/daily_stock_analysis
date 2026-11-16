@@ -4469,6 +4469,36 @@ Index text.
         assert "URL: https://example.com/redirect?" in prompt
         assert ("x" * 220) not in prompt
 
+    def test_us_review_prompt_blocks_unsupported_metrics_and_short_term_trade_levels(self):
+        from src.market_analyzer import MarketIndex, MarketOverview
+        from src.core.market_profile import get_profile
+        from src.core.market_strategy import get_market_strategy_blueprint
+
+        ma = self._make_market_analyzer_with_mock_generate_text(return_value="review")
+        ma.region = "us"
+        ma.profile = get_profile("us")
+        ma.strategy = get_market_strategy_blueprint("us")
+        ma.config.report_language = "zh"
+        prompt = ma._build_review_prompt(
+            MarketOverview(
+                date="2026-11-16",
+                indices=[
+                    MarketIndex(code="NDX", name="纳斯达克100指数", current=28000, change_pct=-1.2),
+                    MarketIndex(code="IXIC", name="纳斯达克综合指数", current=25000, change_pct=-0.8),
+                    MarketIndex(code="SPX", name="标普500指数", current=7500, change_pct=-0.4),
+                    MarketIndex(code="VIX", name="VIX恐慌指数", current=19.3, change_pct=3.2),
+                ],
+            ),
+            [],
+        )
+
+        assert "市盈率 PE、远期 PE" in prompt
+        assert "不得根据缺失数据推断放量/缩量" in prompt
+        assert "不得提供组合仓位百分比" in prompt
+        assert "Nasdaq-100/NDX" in prompt
+        assert "Nasdaq Composite/IXIC" in prompt
+        assert "止损位、目标价" in prompt
+
     def test_market_light_snapshot_marks_defensive_market_red(self):
         from src.market_analyzer import MarketIndex, MarketOverview
 

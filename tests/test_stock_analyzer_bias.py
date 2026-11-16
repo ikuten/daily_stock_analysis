@@ -47,6 +47,7 @@ def _make_result(
         volume_status=volume_status,
         volume_ratio_5d=1.0,
         volume_trend="",
+        volume_data_available=True,
         support_ma5=support_ma5,
         support_ma10=support_ma10,
         macd_status=macd_status,

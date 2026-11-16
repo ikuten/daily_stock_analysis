@@ -335,6 +335,21 @@ def _data_limitation_lines(payload: Dict[str, Any], *, lang: str) -> List[str]:
             "analysis sections; do not treat missing data itself as bullish or bearish."
         )
         lines.append(
+            "- Evidence rule: never infer volume contraction/expansion, volume ratio, "
+            "turnover, valuation, P/E, or forward P/E unless that exact metric is present "
+            "with a usable source and timestamp. Missing or N/A means unknown, not zero."
+        )
+        lines.append(
+            "- Degraded-data rule: if quote or daily bars are fallback, stale, partial, "
+            "estimated, or missing, do not issue precise entry/exit prices, stop-losses, "
+            "targets, or position percentages from those data. State the limitation."
+        )
+        lines.append(
+            "- Index identity rule: preserve the exact benchmark identity supplied by "
+            "the data (e.g. Nasdaq-100/NDX is not Nasdaq Composite/IXIC); never substitute "
+            "a related index or transfer its price, return, or news to another index."
+        )
+        lines.append(
             "- Safety rule: use only status, source, warnings, and missing_reason "
             "from this summary; do not reproduce raw payloads, news body text, "
             "raw trend values, secrets, tokens, or webhooks."
@@ -342,6 +357,18 @@ def _data_limitation_lines(payload: Dict[str, Any], *, lang: str) -> List[str]:
     else:
         lines.append(
             "- 分析规则：辅助数据块缺失只限制对应分析段落，不要把缺失本身解释为利好或利空。"
+        )
+        lines.append(
+            "- 证据规则：只有当成交量、量比、换手率、市盈率 PE 或远期 PE 这一具体指标"
+            "确实存在且来源、时间戳可用时，才允许作出对应判断。缺失值表示未知，绝不等于零。"
+        )
+        lines.append(
+            "- 降级数据规则：行情或日线为 fallback、stale、partial、estimated 或 missing 时，"
+            "不得据此生成精确买入/卖出点位、止损位、目标位或仓位百分比，必须明确说明数据限制。"
+        )
+        lines.append(
+            "- 指数身份规则：严格保留数据源提供的指数身份，例如 Nasdaq-100/NDX 不等于"
+            "Nasdaq Composite/IXIC；不得用相关指数替代，也不得转移其价格、涨跌幅或新闻。"
         )
         lines.append(
             "- 安全规则：只使用本摘要中的 status、source、warnings 和 missing_reason；"
