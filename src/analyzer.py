@@ -2738,7 +2738,7 @@ Output strictly in the following JSON format. This is a complete Decision Dashbo
 - All human-readable JSON values must be written in Korean (한국어).
 - Use the common Korean or original listed company name when confident; do not invent one.
 - This includes `stock_name`, `trend_prediction`, `operation_advice`, `confidence_level`, nested dashboard text, checklist items, and all narrative summaries.
-""" + (us_index_system_prompt_rules(lang) if is_us_index_code(stock_code) else "") + (us_index_system_prompt_rules(lang) if is_us_index_code(stock_code) else "")
+""" + (us_index_system_prompt_rules(lang) if is_us_index_code(stock_code) else "")
         return base_prompt + """
 
 ## 输出语言（最高优先级）
@@ -2746,7 +2746,7 @@ Output strictly in the following JSON format. This is a complete Decision Dashbo
 - 所有 JSON 键名保持不变。
 - `decision_type` 必须保持为 `buy|hold|sell`。
 - 所有面向用户的人类可读文本值必须使用中文。
-"""
+""" + (us_index_system_prompt_rules(lang) if is_us_index_code(stock_code) else "")
 
     def _has_channel_config(self, config: Config) -> bool:
         """Check if multi-channel config (channels / YAML / legacy model_list) is active."""
