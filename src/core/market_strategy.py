@@ -86,7 +86,7 @@ CN_BLUEPRINT = MarketStrategyBlueprint(
 
 US_BLUEPRINT = MarketStrategyBlueprint(
     region="us",
-    title="US Market Regime Observation",
+    title="US Market Regime Strategy",
     positioning="Describe the broad US equity risk regime from verified index, volatility, and macro data; this is a market observation, not a trading plan.",
     principles=[
         "Read S&P 500, Nasdaq-100, Nasdaq Composite, and Dow separately; never substitute one index for another.",
