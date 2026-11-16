@@ -763,7 +763,9 @@ class YfinanceFetcher(BaseFetcher):
             quote = UnifiedRealtimeQuote(
                 code=user_code,
                 name=index_name or user_code,
-                source=RealtimeSource.FALLBACK,
+                # Yahoo Finance is the designated primary provider for US index quotes,
+                # not a fallback source (unlike its general-purpose A-share fallback role).
+                source=RealtimeSource.YFINANCE,
                 market="us",
                 currency=str(ticker_info.get("currency") or "").upper() or None,
                 data_quality="partial" if missing_fields else "ok",
