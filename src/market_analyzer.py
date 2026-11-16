@@ -986,9 +986,9 @@ Focus on index trend, liquidity, and sector rotation to shape the next-session t
             else:
                 regime = "主要指数涨跌分化" if not english else "mixed across major indices"
             summary_body = (
-                f"本次最新可用行情快照显示：{regime}（上涨 {up_count} 个、下跌 {down_count} 个、持平 {flat_count} 个）。"
+                f"本次最新可用行情快照显示：{regime}。"
                 if not english
-                else f"The latest available snapshot shows {regime} ({up_count} higher, {down_count} lower, {flat_count} unchanged)."
+                else f"The latest available snapshot shows {regime}."
             )
             index_lines = [
                 f"- **{_index_label(item)}**：{current_value:,.2f}，涨跌幅 {change_value:+.2f}%"
