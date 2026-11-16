@@ -96,6 +96,12 @@ def test_us_market_recap_guardrail_handles_template_fallback_section_five():
     analyzer._get_review_language = lambda: "zh"
     report = """## US market recap
 
+### 三、板块主线
+模型声称AI板块领涨，芯片股资金流入。
+
+### 四、资金与情绪
+资金净流入达到100亿美元，市场广度明显改善。
+
 ### 五、消息催化
 模型编造的消息催化内容。
 
