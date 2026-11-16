@@ -5,6 +5,7 @@ from types import SimpleNamespace
 
 from src.us_index_report_guardrail import (
     apply_us_index_report_guardrail,
+    is_us_index_report_code,
     us_index_system_prompt_rules,
 )
 
@@ -108,3 +109,11 @@ def test_us_index_prompt_rules_are_explicit_and_language_aware():
     assert "止损位" in zh
     assert "Missing means unknown" in en
     assert "price targets" in en
+
+
+
+def test_us_index_code_detection_covers_canonical_aliases_only():
+    for code in ("SPX", "^GSPC", "NDX", "^NDX", "IXIC", "VIX", "^VIX", "RUT"):
+        assert is_us_index_report_code(code)
+    assert not is_us_index_report_code("AAPL")
+    assert not is_us_index_report_code("600519")
