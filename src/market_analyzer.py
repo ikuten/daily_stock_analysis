@@ -1008,7 +1008,7 @@ Focus on index trend, liquidity, and sector rotation to shape the next-session t
             ]
 
         if vix_index:
-            item, current_value, change_value = vix_index
+            _, current_value, change_value = vix_index
             index_lines.append(
                 f"- **VIX**：最新可用值 {current_value:.2f}，涨跌幅 {change_value:+.2f}%"
                 if not english
