@@ -1012,7 +1012,7 @@ Focus on index trend, liquidity, and sector rotation to shape the next-session t
                 if not english
                 else f"- **VIX**: latest available value {current_value:.2f}, change {change_value:+.2f}%"
             )
-        index_body = "\\n".join(index_lines)
+        index_body = "\n".join(index_lines)
 
         def _replace_section(pattern: str, heading: str, body: str, preserve_table: bool = False) -> None:
             nonlocal text
@@ -1021,47 +1021,47 @@ Focus on index trend, liquidity, and sector rotation to shape the next-session t
                 return
             table_block = ""
             if preserve_table:
-                table_match = re.search(r"(?m)^\\|[^\\n]*(?:\\n\\|[^\\n]*)*", match.group(0))
+                table_match = re.search(r"(?m)^\|[^\n]*(?:\n\|[^\n]*)*", match.group(0))
                 if table_match:
                     table_block = table_match.group(0)
-            replacement = heading + "\\n\\n" + body
+            replacement = heading + "\n\n" + body
             if table_block:
-                replacement += "\\n\\n" + table_block
+                replacement += "\n\n" + table_block
             text = text[:match.start()] + replacement + text[match.end():]
 
         if english:
             _replace_section(
-                r"(?ms)^###\\s*1\\.\\s*Market Summary\\s*\\n.*?(?=^###\\s|\\Z)",
+                r"(?ms)^###\s*1\.\s*Market Summary\s*\n.*?(?=^###\s|\Z)",
                 "### 1. Market Summary",
-                summary_body + "\\n\\nThe summary is descriptive only; it does not attribute index moves to news or provide ETF trading instructions.",
+                summary_body + "\n\nThe summary is descriptive only; it does not attribute index moves to news or provide ETF trading instructions.",
             )
             _replace_section(
-                r"(?ms)^###\\s*2\\.\\s*(?:Index Commentary|Major Indices)\\s*\\n.*?(?=^###\\s|\\Z)",
+                r"(?ms)^###\s*2\.\s*(?:Index Commentary|Major Indices)\s*\n.*?(?=^###\s|\Z)",
                 "### 2. Index Commentary",
-                index_body + "\\n\\nAll figures refer to the latest available source snapshot.",
+                index_body + "\n\nAll figures refer to the latest available source snapshot.",
                 preserve_table=True,
             )
             _replace_section(
-                r"(?ms)^###\\s*4\\.\\s*(?:Outlook|Market Outlook)\\s*\\n.*?(?=^###\\s|\\Z)",
+                r"(?ms)^###\s*4\.\s*(?:Outlook|Market Outlook)\s*\n.*?(?=^###\s|\Z)",
                 "### 4. Outlook",
-                "- Compare SPX, NDX, IXIC, and DJI using the same completed trading session.\\n- Monitor the subsequent VIX direction; a single reading is not a trend.\\n- Discuss macro/news implications only when supported by dated sources; do not infer causation.",
+                "- Compare SPX, NDX, IXIC, and DJI using the same completed trading session.\n- Monitor the subsequent VIX direction; a single reading is not a trend.\n- Discuss macro/news implications only when supported by dated sources; do not infer causation.",
             )
         else:
             _replace_section(
-                r"(?ms)^###\\s*一、(?:盘面总览|市场总结)\\s*\\n.*?(?=^###\\s|\\Z)",
+                r"(?ms)^###\s*一、(?:盘面总览|市场总结)\s*\n.*?(?=^###\s|\Z)",
                 "### 一、盘面总览",
-                summary_body + "\\n\\n以上仅描述行情快照，不对涨跌原因作因果归因，也不构成 ETF 买卖指令。",
+                summary_body + "\n\n以上仅描述行情快照，不对涨跌原因作因果归因，也不构成 ETF 买卖指令。",
             )
             _replace_section(
-                r"(?ms)^###\\s*二、(?:指数结构|指数点评|主要指数)\\s*\\n.*?(?=^###\\s|\\Z)",
+                r"(?ms)^###\s*二、(?:指数结构|指数点评|主要指数)\s*\n.*?(?=^###\s|\Z)",
                 "### 二、指数结构",
-                index_body + "\\n\\n以下为同一报告数据源提供的最新可用指数快照。",
+                index_body + "\n\n以下为同一报告数据源提供的最新可用指数快照。",
                 preserve_table=True,
             )
             _replace_section(
-                r"(?ms)^###\\s*四、(?:后市观察|展望)\\s*\\n.*?(?=^###\\s|\\Z)",
+                r"(?ms)^###\s*四、(?:后市观察|展望)\s*\n.*?(?=^###\s|\Z)",
                 "### 四、后市观察",
-                "- 对照 SPX、NDX、IXIC 和 DJI 在同一完整交易日的方向，观察指数间分化是否持续。\\n- 观察 VIX 后续变化；单一时点读数不能单独代表风险趋势。\\n- 宏观与新闻只引用带来源和日期的信息，不将其直接归因于指数涨跌。",
+                "- 对照 SPX、NDX、IXIC 和 DJI 在同一完整交易日的方向，观察指数间分化是否持续。\n- 观察 VIX 后续变化；单一时点读数不能单独代表风险趋势。\n- 宏观与新闻只引用带来源和日期的信息，不将其直接归因于指数涨跌。",
             )
 
         # Do not let generated prose invent or causally attribute headlines.
