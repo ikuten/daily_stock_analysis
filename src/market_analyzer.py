@@ -983,7 +983,7 @@ Focus on index trend, liquidity, and sector rotation to shape the next-session t
                 "The supplied US index dataset does not establish volume, turnover, PE/valuation, market breadth, or capital flows unless those fields are explicitly present. Missing values remain unknown. News claims must be traceable to the dated source items above."
             )
             news_pattern = r"(?ms)^###\s*3\.\s*News Catalysts\s*\n.*?(?=^###\s|\Z)"
-            strategy_pattern = r"(?ms)^###\s*6\.\s*Strategy Plan\s*\n.*?(?=^###\s|\Z)"
+            strategy_pattern = r"(?ms)^###\s*(?:6\.\s*Strategy Plan|VI\.\s*Strategy Framework)\s*\n.*?(?=^###\s|\Z)"
             news_heading = "### 3. News Catalysts"
             strategy_heading = "### 6. Strategy Plan"
         else:
@@ -1003,7 +1003,7 @@ Focus on index trend, liquidity, and sector rotation to shape the next-session t
                 "除非输入明确提供对应字段，否则不能判断成交量、成交额、PE/估值、市场宽度或资金流。缺失数据代表未知。新闻结论必须能追溯到上方带日期和来源的检索结果。"
             )
             news_pattern = r"(?ms)^###\s*三、消息催化\s*\n.*?(?=^###\s|\Z)"
-            strategy_pattern = r"(?ms)^###\s*六、策略判断\s*\n.*?(?=^###\s|\Z)"
+            strategy_pattern = r"(?ms)^###\s*六、(?:策略判断|策略框架)\s*\n.*?(?=^###\s|\Z)"
             news_heading = "### 三、消息催化"
             strategy_heading = "### 六、策略判断"
 
