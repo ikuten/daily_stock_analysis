@@ -98,6 +98,10 @@ def apply_us_index_report_guardrail(result: Any, source_context: Optional[Dict[s
         dashboard = {}
         result.dashboard = dashboard
 
+    # Preserve only non-actionable checklist context before removing the stock-style plan.
+    battle = dashboard.get("battle_plan")
+    source_checklist = battle.get("action_checklist") if isinstance(battle, dict) else dashboard.get("action_checklist")
+
     # Never expose stock-style entry/exit levels or position sizing for an index.
     dashboard.pop("battle_plan", None)
     dashboard.pop("strategy_synthesis", None)
@@ -137,9 +141,8 @@ def apply_us_index_report_guardrail(result: Any, source_context: Optional[Dict[s
         source_context or {},
         ("pe", "pe_ttm", "trailing_pe", "forward_pe", "pe_ratio", "市盈率", "动态市盈率", "静态市盈率"),
     )
-    checklist = dashboard.get("action_checklist")
     normalized_checklist = [
-        item for item in (checklist or [])
+        item for item in (source_checklist or [])
         if isinstance(item, str)
         and not any(token in item.lower() for token in ("量能", "成交量", "volume", "pe估值", "市盈率", "估值"))
     ]
@@ -158,6 +161,12 @@ def apply_us_index_report_guardrail(result: Any, source_context: Optional[Dict[s
         )
         phase["immediate_action"] = "观察" if not english else "Monitor"
         phase["next_check_time"] = "下一次完整交易日数据更新后" if not english else "After the next complete-session data update"
+        limitations = list(phase.get("data_limitations") or [])
+        limitations = [item for item in limitations if isinstance(item, str) and not any(token in item.lower() for token in ("volume", "成交量", "pe", "估值", "市盈率"))]
+        limitations.append(unknown_volume)
+        if pe_value is None:
+            limitations.append(unknown_pe)
+        phase["data_limitations"] = limitations
 
     result.operation_advice = neutral_advice
     result.decision_type = "hold"
