@@ -817,7 +817,12 @@ Focus on index trend, liquidity, and sector rotation to shape the next-session t
                 "[大盘] %s action=generate_review status=fallback_template reason=no_analyzer",
                 self._log_context(),
             )
-            return self._generate_template_review(overview, news)
+            fallback_review = self._generate_template_review(overview, news)
+            return (
+                self._apply_us_market_review_guardrail(fallback_review, overview, news)
+                if self.region == "us"
+                else fallback_review
+            )
 
         # 构建 Prompt
         prompt = self._build_review_prompt(overview, news)
@@ -911,7 +916,12 @@ Focus on index trend, liquidity, and sector rotation to shape the next-session t
             "[大盘] %s action=generate_review status=fallback_template reason=empty_llm_response",
             self._log_context(),
         )
-        return self._generate_template_review(overview, news)
+        fallback_review = self._generate_template_review(overview, news)
+        return (
+            self._apply_us_market_review_guardrail(fallback_review, overview, news)
+            if self.region == "us"
+            else fallback_review
+        )
 
     def _apply_us_market_review_guardrail(
         self,
