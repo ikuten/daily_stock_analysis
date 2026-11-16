@@ -1061,7 +1061,11 @@ Focus on index trend, liquidity, and sector rotation to shape the next-session t
                     number = float(token.replace(",", "").replace("%", "").replace("+", ""))
                 except ValueError:
                     continue
-                if not any(round(number, precision) in allowed_numbers for precision in (0, 1, 2, 3)):
+                if not any(
+                    abs(number - round(number, precision)) < 1e-9
+                    and round(number, precision) in allowed_numbers
+                    for precision in (0, 1, 2, 3)
+                ):
                     unsupported_number = True
                     break
             if unsupported_number:
