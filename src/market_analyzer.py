@@ -1270,7 +1270,6 @@ Focus on index trend, liquidity, and sector rotation to shape the next-session t
             if (
                 not stripped
                 or stripped.startswith("#")
-                or stripped.startswith("|")
                 or "http://" in stripped
                 or "https://" in stripped
             ):
