@@ -1023,8 +1023,11 @@ Focus on index trend, liquidity, and sector rotation to shape the next-session t
                 value = getattr(index_item, field_name, None)
                 if value is not None:
                     try:
-                        if float(value) != 0.0:
+                        numeric_value = float(value)
+                        if numeric_value != 0.0:
                             source_material.append(str(value))
+                            if field_name in {"change", "change_pct"}:
+                                source_material.append(str(abs(numeric_value)))
                     except (TypeError, ValueError):
                         continue
         for item in (news or [])[:8]:
