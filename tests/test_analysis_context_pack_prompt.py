@@ -177,7 +177,7 @@ def test_chinese_summary_renders_low_sensitivity_pack_statuses() -> None:
     assert "数据质量评分：76/100（可用）" in section
     assert "已知限制：行情：降级、技术：部分可用" in section
     assert "confidence_level 不得为高" in section
-    assert "量比" in section and "N/A 表示未知" in section
+    assert "量比" in section and "缺失值表示未知" in section
     assert "不得据此生成精确买入/卖出点位" in section
     assert "Nasdaq-100/NDX 不等于" in section
     assert "阶段数据规则" not in section
