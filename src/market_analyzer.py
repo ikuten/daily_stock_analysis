@@ -1066,6 +1066,82 @@ Focus on index trend, liquidity, and sector rotation to shape the next-session t
                 "- 对照 SPX、NDX、IXIC 和 DJI 在同一完整交易日的方向，观察指数间分化是否持续。\n- 观察 VIX 后续变化；单一时点读数不能单独代表风险趋势。\n- 宏观与新闻只引用带来源和日期的信息，不将其直接归因于指数涨跌。",
             )
 
+        # Fallback templates may contain breadth/liquidity and sector sections.
+        # Replace them with what the US snapshot actually supports.
+        top_sector_names = [
+            str(item.get("name", "")).strip()
+            for item in (getattr(overview, "top_sectors", None) or [])[:5]
+            if isinstance(item, dict) and item.get("name")
+        ]
+        bottom_sector_names = [
+            str(item.get("name", "")).strip()
+            for item in (getattr(overview, "bottom_sectors", None) or [])[:5]
+            if isinstance(item, dict) and item.get("name")
+        ]
+        top_concept_names = [
+            str(item.get("name", "")).strip()
+            for item in (getattr(overview, "top_concepts", None) or [])[:5]
+            if isinstance(item, dict) and item.get("name")
+        ]
+        bottom_concept_names = [
+            str(item.get("name", "")).strip()
+            for item in (getattr(overview, "bottom_concepts", None) or [])[:5]
+            if isinstance(item, dict) and item.get("name")
+        ]
+        if english:
+            if top_sector_names or bottom_sector_names or top_concept_names or bottom_concept_names:
+                sector_body = (
+                    f"Industry leaders: {', '.join(top_sector_names) or 'not supplied'}. "
+                    f"Industry laggards: {', '.join(bottom_sector_names) or 'not supplied'}. "
+                    f"Concept leaders: {', '.join(top_concept_names) or 'not supplied'}. "
+                    f"Concept laggards: {', '.join(bottom_concept_names) or 'not supplied'}."
+                )
+            else:
+                sector_body = "No verifiable US sector or industry ranking data was supplied; sector leadership and laggards cannot be assessed."
+            funds_body = (
+                "The supplied US index snapshot does not include comparable market breadth, consolidated turnover, "
+                "or fund-flow data. Net inflows/outflows and market participation cannot be assessed. VIX is a volatility measure, not a fund-flow measure."
+            )
+            _replace_section(
+                r"(?ms)^###\\s*3\\.\\s*Breadth & Liquidity\\s*\\n.*?(?=^###\\s|\\Z)",
+                "### 3. Breadth & Liquidity",
+                "Market breadth, consolidated turnover, and fund flows are unavailable in the supplied data; no conclusion is made.",
+            )
+            _replace_section(
+                r"(?ms)^###\\s*4\\.\\s*Sector / Theme Highlights\\s*\\n.*?(?=^###\\s|\\Z)",
+                "### 4. Sector / Theme Highlights",
+                sector_body,
+            )
+            _replace_section(
+                r"(?ms)^###\\s*4\\.\\s*Funds & Sentiment\\s*\\n.*?(?=^###\\s|\\Z)",
+                "### 4. Funds & Sentiment",
+                funds_body,
+            )
+        else:
+            if top_sector_names or bottom_sector_names or top_concept_names or bottom_concept_names:
+                sector_body = (
+                    f"行业领涨线索：{'、'.join(top_sector_names) or '未提供'}；"
+                    f"行业落后线索：{'、'.join(bottom_sector_names) or '未提供'}；"
+                    f"概念领涨线索：{'、'.join(top_concept_names) or '未提供'}；"
+                    f"概念落后线索：{'、'.join(bottom_concept_names) or '未提供'}。"
+                )
+            else:
+                sector_body = "本次未提供可核验的美股行业/板块涨跌榜，无法判断行业强弱或轮动方向。"
+            funds_body = (
+                "本次美股指数输入未提供可比的市场涨跌家数、成交额汇总或资金流向数据，"
+                "无法判断市场宽度及资金净流入/流出。VIX 反映波动率，不等同于资金流向。"
+            )
+            _replace_section(
+                r"(?ms)^###\\s*三、(?:板块主线|热点解读|板块表现)\\s*\\n.*?(?=^###\\s|\\Z)",
+                "### 三、板块主线",
+                sector_body,
+            )
+            _replace_section(
+                r"(?ms)^###\\s*四、(?:资金与情绪|资金动向)\\s*\\n.*?(?=^###\\s|\\Z)",
+                "### 四、资金与情绪",
+                funds_body,
+            )
+
         # Do not let generated prose invent or causally attribute headlines.
         items = []
         for item in (news or [])[:8]:
