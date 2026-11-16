@@ -1904,7 +1904,7 @@ Concept lagging: {bottom_concepts_text if bottom_concepts_text else "N/A"}"""
                 "Do not invent any numeric macro value, analyst target, index level, or trading statistic absent from the supplied data. "
                 "Do not claim that a news item caused an index move unless the supplied source explicitly establishes that relationship. "
                 "Treat all quote values as the latest available values, not automatically as the report-date close. "
-                "Do not provide portfolio sizing, entries, exits, stop-losses, price targets, or short-term trading triggers.\\n"
+                "Do not provide portfolio sizing, entries, exits, stop-losses, price targets, or short-term trading triggers.\n"
                 if self.region == "us" else ""
             )
             data_boundary_requirement += (
