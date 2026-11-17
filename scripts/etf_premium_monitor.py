@@ -41,14 +41,20 @@ OUT = Path("reports")
 HISTORY = Path("data/etf_premium_history.json")
 
 
-def _num(value):
+def _num_signed(value):
+    """Parse signed numeric fields such as daily percentage changes."""
     try:
         if pd.isna(value):
             return None
         result = float(str(value).replace(",", "").replace("%", "").strip())
-        return result if result > 0 else None
+        return result if pd.notna(result) and abs(result) != float("inf") else None
     except (TypeError, ValueError):
         return None
+
+
+def _num(value):
+    result = _num_signed(value)
+    return result if result is not None and result > 0 else None
 
 
 def _classify(premium):
@@ -63,7 +69,7 @@ def _classify(premium):
     return "不买：溢价高于5%"
 
 
-def _is_cn_session(now):
+def _is_cn_trading_day(now):
     try:
         import exchange_calendars as xcals
         cal = xcals.get_calendar("XSHG")
@@ -73,17 +79,39 @@ def _is_cn_session(now):
         return False
 
 
+def _is_cn_trading_time(now):
+    # China A-share continuous auction: 09:30–11:30 and 13:00–15:00.
+    # In particular, do not treat the 12:00 lunch-break run as live data.
+    current = now.time()
+    from datetime import time
+    return (
+        time(9, 30) <= current <= time(11, 30)
+        or time(13, 0) <= current <= time(15, 0)
+    )
+
+
+def _is_cn_session(now):
+    return _is_cn_trading_day(now) and _is_cn_trading_time(now)
+
+
 def collect():
     now = datetime.now(TZ)
     OUT.mkdir(parents=True, exist_ok=True)
     HISTORY.parent.mkdir(parents=True, exist_ok=True)
+    is_trading_day = _is_cn_trading_day(now)
+    is_trading_session = is_trading_day and _is_cn_trading_time(now)
+    market_state = (
+        "交易日盘中/收盘快照" if is_trading_session
+        else "非交易日或交易日历不可验证" if not is_trading_day
+        else "非交易时段（午休或收盘后），不触发入场提醒"
+    )
     result = {
         "generated_at": now.isoformat(),
         "timezone": "Asia/Shanghai",
         "source": "AkShare fund_etf_spot_em (Eastmoney)",
         "source_timestamp_note": "generated_at is the collection time, not an exchange-provided quote timestamp",
-        "is_trading_session": _is_cn_session(now),
-        "market_state": "交易日盘中/收盘快照" if _is_cn_session(now) else "非交易日或交易日历不可验证",
+        "is_trading_session": is_trading_session,
+        "market_state": market_state,
         "premium_definition": "(最新价 / IOPV实时估值 - 1) * 100",
         "rows": [],
         "errors": [],
@@ -124,7 +152,7 @@ def collect():
             amount = _num(row.get("成交额"))
             status = "IOPV有效" if premium is not None else "IOPV缺失/无效"
             if not result["is_trading_session"]:
-                action = "非交易日/日历未验证，不触发入场提醒"
+                action = "非交易日/非交易时段/日历未验证，不触发入场提醒"
             else:
                 action = _classify(premium)
             result["rows"].append({
@@ -136,7 +164,7 @@ def collect():
                 "iopv": iopv,
                 "premium_pct": round(premium, 4) if premium is not None else None,
                 "amount": amount,
-                "change_pct": _num(row.get("涨跌幅")),
+                "change_pct": _num_signed(row.get("涨跌幅")),
                 "status": status,
                 "action": action,
             })
