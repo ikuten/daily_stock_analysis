@@ -113,6 +113,7 @@ def collect():
                     "code": code, "name": fallback_name, "category": category,
                     "priority": priority, "status": "本次行情源未返回该代码",
                     "price": None, "iopv": None, "premium_pct": None,
+                    "amount": None, "change_pct": None,
                     "action": "不判断，不能当作折价机会",
                 })
                 continue
@@ -183,17 +184,22 @@ def collect():
             except (ValueError, OSError):
                 previous = []
         day = now.date().isoformat()
-        if not previous or previous[-1].get("date") != day:
-            previous.append({
-                "date": day,
-                "collected_at": result["generated_at"],
-                "premiums": {
-                    item["code"]: item["premium_pct"]
-                    for item in result["rows"] if item["premium_pct"] is not None
-                },
-            })
-            previous = previous[-30:]
-            HISTORY.write_text(json.dumps(previous, ensure_ascii=False, indent=2), encoding="utf-8")
+        snapshot = {
+            "date": day,
+            "collected_at": result["generated_at"],
+            "premiums": {
+                item["code"]: item["premium_pct"]
+                for item in result["rows"] if item["premium_pct"] is not None
+            },
+        }
+        # Each intraday run refreshes today's snapshot. The 15:00 workflow
+        # run persists the final session snapshot to the repository.
+        if previous and previous[-1].get("date") == day:
+            previous[-1] = snapshot
+        else:
+            previous.append(snapshot)
+        previous = previous[-30:]
+        HISTORY.write_text(json.dumps(previous, ensure_ascii=False, indent=2), encoding="utf-8")
     print(json.dumps({
         "generated_at": result["generated_at"],
         "is_trading_session": result["is_trading_session"],
