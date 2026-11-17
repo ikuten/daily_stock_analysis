@@ -135,3 +135,73 @@ def test_us_market_recap_guardrail_handles_template_fallback_section_five():
     assert "无法判断行业强弱" in output
     assert "无法判断市场宽度及资金净流入/流出" in output
     assert "100亿美元" not in output
+
+
+
+def test_us_market_recap_guardrail_handles_emoji_headings_and_quote_dates():
+    analyzer = object.__new__(MarketAnalyzer)
+    analyzer.region = "us"
+    analyzer._get_review_language = lambda: "zh"
+    report = """## 2026-11-16 大盘复盘
+
+> 今日美股科技领跌，某新闻导致纳指下跌，后续关注支撑买盘。
+
+模型又补充了一段没有来源的导语，声称科技股资金正在流出。
+
+### 一、盘面总览 🌐
+模型生成的市场判断仍包含未经核实的因果关系。
+- **操作建议**：信号分化，控制仓位并等待量价确认。
+
+### 二、指数结构 📈
+模型生成的指数点评声称资金流向防守板块。
+| 指数 | 最新 | 涨跌幅 |
+|---|---:|---:|
+| SPX | 7561.67 | -0.40% |
+
+### 三、消息催化 📰
+模型编造的新闻内容。
+
+### 四、后市观察 👁️
+纳指关键支撑买盘即将出现，跌破支撑应减仓。
+
+### 五、风险提示 ⚠️
+美债收益率上升导致科技股下跌。
+
+### 六、策略判断 🎯
+建议控制仓位，设置止损和目标价。
+"""
+    news = [{
+        "title": "Dated market news lead",
+        "snippet": "A retrieved source discusses the policy outlook.",
+        "source": "Reuters",
+        "published_date": "2026-11-15",
+        "url": "https://example.com/dated-news",
+    }]
+    overview = MarketOverview(
+        date="2026-11-16",
+        indices=[
+            MarketIndex(code="SPX", name="标普500指数", current=7561.67, prev_close=7592.03, change_pct=-0.40, quote_date="2026-11-13"),
+            MarketIndex(code="NDX", name="纳斯达克100指数", current=27943.74, prev_close=28288.82, change_pct=-1.22, quote_date="2026-11-13"),
+            MarketIndex(code="IXIC", name="纳斯达克综合指数", current=25136.27, prev_close=25366.94, change_pct=-0.91, quote_date="2026-11-13"),
+            MarketIndex(code="DJI", name="道琼斯工业指数", current=52347.55, prev_close=52295.27, change_pct=0.10, quote_date="2026-11-13"),
+            MarketIndex(code="VIX", name="VIX恐慌指数", current=19.94, prev_close=19.30, change_pct=3.32, quote_date="2026-11-13"),
+        ],
+    )
+
+    output = analyzer._apply_us_market_review_guardrail(report, overview, news)
+
+    assert "行情日期：2026-11-13" in output
+    assert "报告生成日期：2026-11-16" in output
+    assert "今日美股科技领跌" not in output
+    assert "模型又补充了一段没有来源的导语" not in output
+    assert "某新闻导致纳指下跌" not in output
+    assert "控制仓位并等待量价确认" not in output
+    assert "支撑买盘" not in output
+    assert "模型生成的市场判断" not in output
+    assert "模型生成的指数点评" not in output
+    assert "Reuters" in output
+    assert "2026-11-15" in output
+    assert "https://example.com/dated-news" in output
+    assert "不提供组合仓位比例" in output
+    assert "美债收益率上升导致科技股下跌" not in output
+    assert "新闻只作为背景线索" in output
