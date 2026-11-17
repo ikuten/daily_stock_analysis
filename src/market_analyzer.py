@@ -1277,6 +1277,8 @@ Focus on index trend, liquidity, and sector rotation to shape the next-session t
         # Remove numeric claims that cannot be traced to the supplied index
         # snapshot or retrieved news. Keep markdown tables/headings/URLs intact.
         source_material = [str(getattr(overview, "date", "") or "")]
+        # Quote dates are explicit source metadata and must survive numeric sanitization.
+        source_material.extend(quote_dates)
         for index_item in (getattr(overview, "indices", None) or []):
             source_material.append(str(getattr(index_item, "name", "") or ""))
             for field_name in (
