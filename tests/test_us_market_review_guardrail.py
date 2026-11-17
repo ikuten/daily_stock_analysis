@@ -13,6 +13,7 @@ from src.market_analyzer import (
     _select_us_market_news,
 )
 from src.core.market_strategy import get_market_strategy_blueprint
+from src.core.market_profile import get_profile
 
 
 def test_us_market_recap_replaces_trading_plan_and_unattributed_news():
@@ -335,3 +336,12 @@ def test_us_market_guardrail_discloses_when_only_low_trust_news_is_available():
     assert "未发现达到 A/B 级标准的新闻来源" in output
     assert "Community-only claim" not in output
 
+
+
+def test_us_market_news_queries_cover_reputable_publishers_and_official_macro_sources():
+    queries = get_profile("us").news_queries
+
+    assert len(queries) == 3
+    assert any("Reuters" in query and "Bloomberg" in query for query in queries)
+    assert any("Federal Reserve" in query and "CPI" in query for query in queries)
+    assert any("Nasdaq" in query and "Financial Times" in query for query in queries)
