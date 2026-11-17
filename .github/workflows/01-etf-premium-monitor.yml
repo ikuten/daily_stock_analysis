@@ -1,0 +1,62 @@
+name: 场内纳指标普ETF溢价监控
+
+on:
+  # 新加坡/北京时间：09:30开盘、10:00/11:00/12:00/13:00/14:00、15:00收盘
+  # GitHub cron 使用 UTC。周末不运行；法定节假日由交易日历检查并禁止触发机会提醒。
+  schedule:
+    - cron: '30 1 * * 1-5'
+    - cron: '0 2-6 * * 1-5'  # 10:00–14:00
+    - cron: '0 7 * * 1-5'      # 15:00收盘，保存当日最终快照
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: etf-premium-monitor
+  cancel-in-progress: false
+
+jobs:
+  monitor:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      TZ: Asia/Shanghai
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - name: 设置 Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+      - name: 安装监控依赖
+        run: |
+          python -m pip install --upgrade pip
+          pip install 'akshare>=1.12.0,<1.20.0' 'pandas>=2.0.0' 'exchange-calendars>=4.13.0'
+      - name: 采集场内ETF实时IOPV溢价
+        run: python scripts/etf_premium_monitor.py
+      - name: 保存最近30个交易日溢价历史
+        if: success() && github.event_name == 'schedule' && github.event.schedule == '0 7 * * 1-5'
+        run: |
+          if git diff --quiet -- data/etf_premium_history.json; then
+            echo "历史数据无变化，跳过提交"
+          else
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add data/etf_premium_history.json
+            git commit -m "data: update ETF premium history"
+            git push
+          fi
+      - name: 上传监控快照
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: etf-premium-${{ github.run_number }}
+          path: |
+            reports/etf_premium_latest.json
+            reports/etf_premium_latest.md
+            data/etf_premium_history.json
+          if-no-files-found: warn
+          retention-days: 30
