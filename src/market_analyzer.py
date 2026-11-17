@@ -1099,6 +1099,19 @@ Focus on index trend, liquidity, and sector rotation to shape the next-session t
                 "- 对照 SPX、NDX、IXIC 和 DJI 在同一完整交易日的方向，观察指数间分化是否持续。\n- 观察 VIX 后续变化；单一时点读数不能单独代表风险趋势。\n- 宏观与新闻只引用带来源和日期的信息，不将其直接归因于指数涨跌。",
             )
 
+        if english:
+            _replace_section(
+                r"(?ms)^###\s*5\.\s*(?:Risk Alerts|Risk Warning)[^\n]*\n.*?(?=^###\s|\Z)",
+                "### 5. Risk Alerts",
+                "The supplied snapshot does not establish volume, valuation, breadth, or capital flows unless explicitly provided. Retrieved news is context only and does not prove why an index moved.",
+            )
+        else:
+            _replace_section(
+                r"(?ms)^###\s*五、(?:风险提示|风险警示)[^\n]*\n.*?(?=^###\s|\Z)",
+                "### 五、风险提示",
+                "本次行情快照不能证明成交量、估值、市场宽度或资金流向，除非输入明确提供对应数据。新闻只作为背景线索，不作为指数涨跌原因的证据。",
+            )
+
         # Fallback templates may contain breadth/liquidity and sector sections.
         # Replace them with what the US snapshot actually supports.
         top_sector_names = [
