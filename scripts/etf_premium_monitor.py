@@ -99,7 +99,7 @@ def collect():
     OUT.mkdir(parents=True, exist_ok=True)
     HISTORY.parent.mkdir(parents=True, exist_ok=True)
     is_trading_day = _is_cn_trading_day(now)
-    is_trading_session = is_trading_day and _is_cn_trading_time(now)
+    is_trading_session = _is_cn_session(now)
     market_state = (
         "交易日盘中/收盘快照" if is_trading_session
         else "非交易日或交易日历不可验证" if not is_trading_day
