@@ -18,24 +18,24 @@ import pandas as pd
 
 TZ = ZoneInfo("Asia/Shanghai")
 WATCH = {
-    "159632": ("华安纳斯达克100ETF", "纳指100", "重点"),
-    "159501": ("嘉实纳斯达克100ETF", "纳指100", "重点"),
-    "513100": ("国泰纳斯达克100ETF", "纳指100", "重点"),
-    "513390": ("博时纳斯达克100ETF", "纳指100", "重点"),
-    "159696": ("纳指100 ETF", "纳指100", "覆盖"),
-    "159941": ("纳指100 ETF", "纳指100", "覆盖"),
-    "159659": ("纳指100 ETF", "纳指100", "覆盖"),
-    "513870": ("纳指100 ETF", "纳指100", "覆盖"),
-    "513300": ("纳指100 ETF", "纳指100", "覆盖"),
-    "159660": ("纳指100 ETF", "纳指100", "覆盖"),
-    "159513": ("纳指100 ETF", "纳指100", "覆盖"),
-    "513110": ("纳指100 ETF", "纳指100", "覆盖"),
-    "161130": ("纳指相关LOF", "纳指100", "覆盖"),
-    "161125": ("标普500相关LOF", "标普500", "覆盖"),
-    "513650": ("南方标普500ETF", "标普500", "重点"),
+    "159632": ("华安纳斯达克100ETF（QDII）", "纳指100", "重点"),
+    "159501": ("嘉实纳斯达克100ETF（QDII）", "纳指100", "重点"),
+    "513100": ("国泰纳斯达克100ETF（QDII）", "纳指100", "重点"),
+    "513390": ("博时纳斯达克100ETF（QDII）", "纳指100", "重点"),
+    "159696": ("易方达纳斯达克100ETF（QDII）", "纳指100", "覆盖"),
+    "159941": ("广发纳斯达克100ETF（QDII）", "纳指100", "覆盖"),
+    "159659": ("招商纳斯达克100ETF（QDII）", "纳指100", "覆盖"),
+    "513870": ("富国纳斯达克100ETF（QDII）", "纳指100", "覆盖"),
+    "513300": ("华夏纳斯达克100ETF（QDII）", "纳指100", "覆盖"),
+    "159660": ("汇添富纳斯达克100ETF（QDII）", "纳指100", "覆盖"),
+    "159513": ("大成纳斯达克100ETF（QDII）", "纳指100", "覆盖"),
+    "513110": ("华泰柏瑞纳斯达克100ETF（QDII）", "纳指100", "覆盖"),
+    "161130": ("易方达纳斯达克100ETF联接（QDII-LOF）", "纳指100", "覆盖"),
+    "161125": ("易方达标普500指数证券投资基金（LOF）", "标普500", "覆盖"),
+    "513650": ("南方标普500ETF（QDII）", "标普500", "重点"),
     "513500": ("博时标普500ETF", "标普500", "重点"),
-    "159612": ("国泰标普500ETF", "标普500", "重点"),
-    "159655": ("华夏标普500ETF", "标普500", "重点"),
+    "159612": ("国泰标普500ETF（QDII）", "标普500", "重点"),
+    "159655": ("华夏标普500ETF（QDII）", "标普500", "重点"),
 }
 OUT = Path("reports")
 HISTORY = Path("data/etf_premium_history.json")
@@ -157,7 +157,7 @@ def collect():
                 action = _classify(premium)
             result["rows"].append({
                 "code": code,
-                "name": str(row.get("名称") or fallback_name),
+                "name": fallback_name if code in WATCH else str(row.get("名称") or fallback_name),
                 "category": category,
                 "priority": priority,
                 "price": price,
@@ -170,6 +170,10 @@ def collect():
             })
     except Exception as exc:
         result["errors"].append(f"{type(exc).__name__}: {exc}")
+
+    # Every consumer gets one unambiguous human-readable identifier.
+    for item in result["rows"]:
+        item["display_label"] = f"{item['name']}（{item['code']}）"
 
     result["rows"].sort(key=lambda x: (
         x["category"], x["priority"] != "重点",
@@ -187,14 +191,14 @@ def collect():
         "- 计算口径：实时成交价 / IOPV实时估值 - 1；不是官方NAV溢价。",
         "- 注意：采集时间不等于交易所行情时间；缺少IOPV时不推算、不触发机会提醒。",
         "",
-        "| 代码 | 名称 | 类别 | 最新价 | IOPV | 溢价率 | 成交额 | 判断 |",
-        "|---|---|---|---:|---:|---:|---:|---|",
+        "| 基金名称（代码） | 跟踪指数 | 最新价 | IOPV | 溢价率 | 成交额 | 判断 |",
+        "|---|---|---:|---:|---:|---:|---|",
     ]
     for item in result["rows"]:
         def fmt(v, digits=4):
             return "缺失" if v is None else f"{v:.{digits}f}"
         lines.append(
-            f"| {item['code']} | {item['name']} | {item['category']} | "
+            f"| {item['display_label']} | {item['category']} | "
             f"{fmt(item['price'])} | {fmt(item['iopv'])} | "
             f"{fmt(item['premium_pct'], 2)}% | {fmt(item['amount'], 0)} | {item['action']} |"
         )
