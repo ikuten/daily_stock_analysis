@@ -1,9 +1,10 @@
 name: 每日股票分析
 
 on:
-  # 定时触发 - 每天北京时间 08:00 (UTC 00:00)，覆盖周末以便复盘最近一个美股交易日
+  # 定时触发 - 每天新加坡/北京时间 07:30 (UTC 前一日 23:30)，覆盖周末以便复盘最近一个美股交易日
+  # GitHub schedule 使用 UTC；新加坡与北京时间均为 UTC+8。
   schedule:
-    - cron: '0 0 * * *'        # 每天 UTC 00:00 = 北京时间 08:00
+    - cron: '30 23 * * *'     # 每天 UTC 23:30 = 次日新加坡/北京时间 07:30
   
   # 手动触发
   workflow_dispatch:
@@ -568,6 +569,7 @@ jobs:
           fi
       
       - name: 上传分析报告
+        id: upload-report
         uses: actions/upload-artifact@v6
         if: always()
         with:
@@ -577,6 +579,36 @@ jobs:
             logs/
           retention-days: 30
       
+      - name: 发布报告交付摘要
+        if: always()
+        env:
+          ARTIFACT_URL: ${{ steps.upload-report.outputs.artifact-url }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          {
+            echo '## 美股复盘交付状态'
+            echo ''
+            if [ -n "$ARTIFACT_URL" ]; then
+              echo "- 报告与日志：[下载本次运行产物]($ARTIFACT_URL)"
+            else
+              echo '- 报告产物：未能生成 Artifact，请检查上传步骤。'
+            fi
+            echo "- [查看本次 GitHub Actions 运行]($RUN_URL)"
+            echo ''
+            echo '### 报告文件'
+            if [ -d reports ] && find reports -maxdepth 1 -type f -print -quit | grep -q .; then
+              find reports -maxdepth 1 -type f -printf '%f\n' | sort | sed 's/^/- /'
+            else
+              echo '- 未发现报告文件。'
+            fi
+            echo ''
+            echo '### 通知诊断'
+            if grep -R -h -E 'skip_notification|notification.*(success|failed)|发送成功|发送失败' logs 2>/dev/null | tail -n 8 > /tmp/notification-diagnostics.txt && [ -s /tmp/notification-diagnostics.txt ]; then
+              sed 's/^/- /' /tmp/notification-diagnostics.txt
+            else
+              echo '- 日志中未发现明确的通知发送结果，请查看运行日志中的通知渠道配置与发送记录。'
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
       - name: 显示运行结果
         if: always()
         run: |
