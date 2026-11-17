@@ -17,6 +17,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from inspect import getattr_static
 from typing import Optional, Dict, Any, List
+from urllib.parse import urlsplit
 
 import pandas as pd
 
@@ -55,6 +56,119 @@ _CHINESE_SECTION_PATTERNS = {
     "funds_sentiment": r"###\s*四、(?:资金与情绪|资金动向)",
     "news_catalysts": r"###\s*五、(?:消息催化|后市展望)",
 }
+
+
+# US market-review news is deliberately limited to traceable editorial or primary sources.
+# Unknown domains and user-generated/quote-page sources are not used as factual evidence.
+_US_NEWS_TIER_A_DOMAINS = (
+    "reuters.com", "apnews.com", "bloomberg.com",
+    "sec.gov", "federalreserve.gov", "bls.gov", "bea.gov",
+    "treasury.gov", "cftc.gov", "finra.org", "whitehouse.gov",
+)
+_US_NEWS_TIER_B_DOMAINS = (
+    "wsj.com", "ft.com", "cnbc.com", "marketwatch.com",
+    "finance.yahoo.com", "bbc.com", "nytimes.com", "barrons.com",
+    "fortune.com", "businessinsider.com", "axios.com", "politico.com",
+    "investing.com", "nasdaq.com", "morningstar.com", "economist.com",
+    "theguardian.com", "abcnews.go.com",
+)
+_US_NEWS_BLOCKED_DOMAINS = (
+    "moomoo.com", "tradingkey.com", "wenxuecity.com", "jrj.com.cn",
+    "stocktwits.com", "reddit.com", "twitter.com", "x.com",
+    "tradingview.com", "seekingalpha.com",
+)
+_US_NEWS_SOURCE_ALIASES = {
+    "reuters": "reuters.com",
+    "associated press": "apnews.com",
+    "ap": "apnews.com",
+    "bloomberg": "bloomberg.com",
+    "financial times": "ft.com",
+    "the wall street journal": "wsj.com",
+    "wsj": "wsj.com",
+    "cnbc": "cnbc.com",
+    "marketwatch": "marketwatch.com",
+    "yahoo finance": "finance.yahoo.com",
+    "bbc": "bbc.com",
+    "new york times": "nytimes.com",
+    "barron's": "barrons.com",
+    "barrons": "barrons.com",
+    "nasdaq": "nasdaq.com",
+    "morningstar": "morningstar.com",
+}
+
+
+def _domain_matches(host: str, domain: str) -> bool:
+    return host == domain or host.endswith("." + domain)
+
+
+def _classify_us_market_news_source(item: Any) -> Dict[str, str]:
+    """Classify a US-market news item by its publisher domain, not its search provider."""
+    if isinstance(item, dict):
+        url = str(item.get("url") or "").strip()
+        source = str(item.get("source") or "").strip()
+    else:
+        url = str(getattr(item, "url", "") or "").strip()
+        source = str(getattr(item, "source", "") or "").strip()
+
+    raw = url or source
+    if not raw:
+        return {"tier": "C", "label": "unverified", "host": "", "reason": "missing publisher URL"}
+
+    candidate = raw if "://" in raw else "//" + raw
+    try:
+        parsed = urlsplit(candidate)
+        host = (parsed.hostname or "").lower().rstrip(".")
+        path = (parsed.path or "").lower()
+    except ValueError:
+        host, path = "", ""
+
+    if not host:
+        alias = _US_NEWS_SOURCE_ALIASES.get(source.lower())
+        if alias:
+            host = alias
+
+    if not host:
+        return {"tier": "C", "label": "unverified", "host": "", "reason": "publisher domain unavailable"}
+
+    if any(_domain_matches(host, domain) for domain in _US_NEWS_BLOCKED_DOMAINS):
+        return {"tier": "C", "label": "excluded", "host": host, "reason": "community, aggregator, or user-generated source"}
+
+    # A reputable publisher's quote/community page is still not a news article.
+    if re.match(r"^/(?:quote|quotes|community|ideas|discussion|forums?)(?:/|$)", path):
+        return {"tier": "C", "label": "excluded", "host": host, "reason": "quote or user-generated page"}
+
+    if any(_domain_matches(host, domain) for domain in _US_NEWS_TIER_A_DOMAINS):
+        return {"tier": "A", "label": "official or top-tier wire", "host": host, "reason": "recognized primary source or wire service"}
+    if any(_domain_matches(host, domain) for domain in _US_NEWS_TIER_B_DOMAINS):
+        return {"tier": "B", "label": "established media", "host": host, "reason": "recognized financial or mainstream publisher"}
+
+    return {"tier": "C", "label": "unverified", "host": host, "reason": "publisher not on the approved source list"}
+
+
+def _select_us_market_news(news: Optional[List], max_results: int = 6) -> List:
+    """Keep only A/B sources, rank A before B, and remove duplicate headlines/URLs."""
+    ranked = []
+    seen = set()
+    for position, item in enumerate(news or []):
+        classification = _classify_us_market_news_source(item)
+        tier = classification["tier"]
+        if tier not in {"A", "B"}:
+            continue
+        if isinstance(item, dict):
+            title = str(item.get("title") or "").strip()
+            url = str(item.get("url") or "").strip()
+        else:
+            title = str(getattr(item, "title", "") or "").strip()
+            url = str(getattr(item, "url", "") or "").strip()
+        normalized_title = re.sub(r"\s+", " ", title).casefold()
+        normalized_url = url.split("#", 1)[0].rstrip("/").casefold()
+        identity = normalized_url or normalized_title
+        if not title or not identity or identity in seen:
+            continue
+        seen.add(identity)
+        ranked.append((0 if tier == "A" else 1, position, item))
+    ranked.sort(key=lambda value: (value[0], value[1]))
+    return [item for _, _, item in ranked[:max(0, int(max_results))]]
 
 
 @dataclass
@@ -775,6 +889,23 @@ Focus on index trend, liquidity, and sector rotation to shape the next-session t
                         len(response.results),
                     )
             
+            if self.region == "us":
+                raw_count = len(all_news)
+                tier_counts = {"A": 0, "B": 0, "C": 0}
+                for item in all_news:
+                    tier_counts[_classify_us_market_news_source(item)["tier"]] += 1
+                all_news = _select_us_market_news(all_news, max_results=6)
+                logger.info(
+                    "[大盘] %s action=search_market_news source_filter=us "
+                    "raw=%d kept=%d tier_a=%d tier_b=%d excluded=%d",
+                    self._log_context(),
+                    raw_count,
+                    len(all_news),
+                    tier_counts["A"],
+                    tier_counts["B"],
+                    tier_counts["C"],
+                )
+
             logger.info(
                 "[大盘] %s action=search_market_news status=success count=%d",
                 self._log_context(),
@@ -1193,15 +1324,28 @@ Focus on index trend, liquidity, and sector rotation to shape the next-session t
                 funds_body,
             )
 
+        # Apply the source-quality boundary again at the final report edge.
+        # This prevents low-trust search results from leaking through an LLM draft.
+        trusted_news = _select_us_market_news(news, max_results=6)
+
         # Do not let generated prose invent or causally attribute headlines.
         items = []
-        for item in (news or [])[:8]:
+        for item in trusted_news:
             normalized = self._normalize_news_item(item)
+            source_quality = _classify_us_market_news_source(item)
+            tier_label = (
+                "A级（官方/一线通讯社）" if source_quality["tier"] == "A"
+                else "B级（成熟财经/主流媒体）"
+            )
             title = normalized.get("title", "").strip()
             if not title:
                 continue
             meta = " / ".join(
-                value for value in (normalized.get("source", "").strip(), normalized.get("published_date", "").strip())
+                value for value in (
+                    normalized.get("source", "").strip(),
+                    normalized.get("published_date", "").strip(),
+                    tier_label,
+                )
                 if value
             ) or ("source/date not supplied" if english else "来源/日期未提供")
             snippet = normalized.get("snippet", "").strip()
@@ -1215,10 +1359,10 @@ Focus on index trend, liquidity, and sector rotation to shape the next-session t
 
         if english:
             news_body = (
-                "The following are retrieved news leads only. They are not proof of causation for index moves.\n\n"
+                "Source tiers: A = official sources or top-tier wire services; B = established financial or mainstream media. Community posts, quote pages, aggregators, and unclassified publishers are excluded. These are news leads, not proof of causation for index moves.\n\n"
                 + "\n\n".join(items)
                 if items
-                else "No attributable news items with usable headlines were supplied; no event attribution is made."
+                else "No A/B-tier news sources were available. Low-trust, community, quote-page, and unclassified results were excluded; no event attribution is made."
             )
             strategy_body = (
                 "**Market stance:** Describe risk-on, neutral, or risk-off conditions qualitatively from the supplied index and volatility data.\n\n"
@@ -1235,10 +1379,10 @@ Focus on index trend, liquidity, and sector rotation to shape the next-session t
             strategy_heading = "### 6. Strategy Plan"
         else:
             news_body = (
-                "以下仅列出实际检索到的新闻线索，不代表这些事件已被证实为指数涨跌原因。\n\n"
+                "来源分级：A级为官方机构/一线通讯社，B级为成熟财经及主流媒体。社区内容、行情报价页、聚合站及未分级来源不纳入。以下仅列新闻线索，不代表这些事件已被证实为指数涨跌原因。\n\n"
                 + "\n\n".join(items)
                 if items
-                else "未提供具备可用标题的新闻来源，本报告不作事件归因。"
+                else "未发现达到 A/B 级标准的新闻来源；社区内容、行情报价页、聚合站及未分级来源已排除，本报告不作事件归因。"
             )
             strategy_body = (
                 "**市场状态：** 仅根据已提供的指数方向与波动率，定性描述积极、中性或防守状态。\n\n"
@@ -1295,7 +1439,7 @@ Focus on index trend, liquidity, and sector rotation to shape the next-session t
                                 source_material.append(str(abs(numeric_value)))
                     except (TypeError, ValueError):
                         continue
-        for item in (news or [])[:8]:
+        for item in trusted_news:
             normalized = self._normalize_news_item(item)
             source_material.extend(
                 normalized.get(field_name, "")
