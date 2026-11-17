@@ -25,12 +25,26 @@ def test_num_rejects_missing_and_non_positive_values():
     assert monitor._num("—") is None
     assert monitor._num("0") is None
     assert monitor._num("2.345") == 2.345
+    assert monitor._num_signed("-2.35%") == -2.35
+    assert monitor._num_signed("0.00%") == 0.0
+
+
+def test_trading_time_guard_excludes_lunch_and_after_close():
+    from datetime import datetime
+
+    assert monitor._is_cn_trading_time(datetime.fromisoformat("2026-11-17T09:30:00"))
+    assert monitor._is_cn_trading_time(datetime.fromisoformat("2026-11-17T11:30:00"))
+    assert monitor._is_cn_trading_time(datetime.fromisoformat("2026-11-17T13:00:00"))
+    assert monitor._is_cn_trading_time(datetime.fromisoformat("2026-11-17T15:00:00"))
+    assert not monitor._is_cn_trading_time(datetime.fromisoformat("2026-11-17T09:29:00"))
+    assert not monitor._is_cn_trading_time(datetime.fromisoformat("2026-11-17T12:00:00"))
+    assert not monitor._is_cn_trading_time(datetime.fromisoformat("2026-11-17T15:01:00"))
 
 
 def test_non_trading_session_never_emits_buy_opportunity(tmp_path, monkeypatch):
     monkeypatch.setattr(monitor, "OUT", tmp_path / "reports")
     monkeypatch.setattr(monitor, "HISTORY", tmp_path / "data" / "history.json")
-    monkeypatch.setattr(monitor, "_is_cn_session", lambda now: False)
+    monkeypatch.setattr(monitor, "_is_cn_trading_day", lambda now: False)
     frame = pd.DataFrame([{
         "代码": "513500", "名称": "博时标普500ETF", "最新价": 2.0,
         "IOPV实时估值": 2.01, "成交额": 1000000, "涨跌幅": -1.0,
@@ -39,5 +53,6 @@ def test_non_trading_session_never_emits_buy_opportunity(tmp_path, monkeypatch):
         result = monitor.collect()
     row = next(item for item in result["rows"] if item["code"] == "513500")
     assert row["premium_pct"] is not None
+    assert row["change_pct"] == -1.0
     assert "不触发入场提醒" in row["action"]
     assert not (tmp_path / "data" / "history.json").exists()
