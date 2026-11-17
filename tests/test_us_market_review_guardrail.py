@@ -5,7 +5,13 @@ from tests.litellm_stub import ensure_litellm_stub
 
 ensure_litellm_stub()
 
-from src.market_analyzer import MarketAnalyzer, MarketIndex, MarketOverview
+from src.market_analyzer import (
+    MarketAnalyzer,
+    MarketIndex,
+    MarketOverview,
+    _classify_us_market_news_source,
+    _select_us_market_news,
+)
 from src.core.market_strategy import get_market_strategy_blueprint
 
 
@@ -205,3 +211,127 @@ def test_us_market_recap_guardrail_handles_emoji_headings_and_quote_dates():
     assert "不提供组合仓位比例" in output
     assert "美债收益率上升导致科技股下跌" not in output
     assert "新闻只作为背景线索" in output
+
+
+def test_us_news_source_classifier_uses_publisher_domain_and_tiers():
+    assert _classify_us_market_news_source({
+        "source": "Reuters",
+        "url": "https://www.reuters.com/markets/us/story/",
+    })["tier"] == "A"
+    assert _classify_us_market_news_source({
+        "source": "CNBC",
+        "url": "https://www.cnbc.com/2026/11/16/market-story.html",
+    })["tier"] == "B"
+    # A trusted publisher's quote page is not an editorial news article.
+    assert _classify_us_market_news_source({
+        "source": "Yahoo Finance",
+        "url": "https://finance.yahoo.com/quote/%5EGSPC/",
+    })["tier"] == "C"
+    assert _classify_us_market_news_source({
+        "source": "Moomoo",
+        "url": "https://www.moomoo.com/community/feed/example",
+    })["tier"] == "C"
+    # A source label cannot override an unrecognized publisher URL.
+    assert _classify_us_market_news_source({
+        "source": "Reuters",
+        "url": "https://unknown-publisher.example/story/",
+    })["tier"] == "C"
+
+
+def test_us_news_selection_prioritizes_a_and_b_and_drops_low_trust_duplicates():
+    items = [
+        {
+            "title": "Community rumor",
+            "source": "Moomoo",
+            "url": "https://www.moomoo.com/community/feed/rumor",
+        },
+        {
+            "title": "CNBC report",
+            "source": "CNBC",
+            "url": "https://www.cnbc.com/2026/11/16/report.html",
+        },
+        {
+            "title": "Reuters report",
+            "source": "Reuters",
+            "url": "https://www.reuters.com/markets/us/report.html",
+        },
+        {
+            "title": "Duplicate Reuters report",
+            "source": "Reuters",
+            "url": "https://www.reuters.com/markets/us/report.html",
+        },
+        {
+            "title": "Unclassified blog",
+            "source": "Unknown",
+            "url": "https://unknown.example/blog",
+        },
+    ]
+
+    selected = _select_us_market_news(items, max_results=6)
+
+    assert [item["title"] for item in selected] == ["Reuters report", "CNBC report"]
+
+
+def test_us_market_guardrail_excludes_low_trust_news_from_final_report():
+    analyzer = object.__new__(MarketAnalyzer)
+    analyzer.region = "us"
+    analyzer._get_review_language = lambda: "zh"
+    news = [
+        {
+            "title": "Reuters verified headline",
+            "snippet": "A dated report describes the policy announcement.",
+            "source": "Reuters",
+            "published_date": "2026-11-15",
+            "url": "https://www.reuters.com/world/us/policy-story/",
+        },
+        {
+            "title": "Moomoo community rumor",
+            "snippet": "Unverified social discussion.",
+            "source": "Moomoo",
+            "published_date": "2026-11-15",
+            "url": "https://www.moomoo.com/community/feed/rumor",
+        },
+        {
+            "title": "Unknown site speculation",
+            "snippet": "An unverified blog post.",
+            "source": "Unknown",
+            "published_date": "2026-11-15",
+            "url": "https://unknown.example/speculation",
+        },
+    ]
+    overview = MarketOverview(date="2026-11-16")
+
+    output = analyzer._apply_us_market_review_guardrail(
+        "## 2026-11-16 US Market Recap\n\n### 一、盘面总览\nModel text.\n\n### 五、消息催化\nUntrusted draft headlines.\n\n### 六、策略判断\nDraft strategy.",
+        overview,
+        news,
+    )
+
+    assert "Reuters verified headline" in output
+    assert "A级（官方/一线通讯社）" in output
+    assert "Moomoo community rumor" not in output
+    assert "Unknown site speculation" not in output
+    assert "未发现达到 A/B 级标准" not in output
+
+
+def test_us_market_guardrail_discloses_when_only_low_trust_news_is_available():
+    analyzer = object.__new__(MarketAnalyzer)
+    analyzer.region = "us"
+    analyzer._get_review_language = lambda: "zh"
+    news = [{
+        "title": "Community-only claim",
+        "snippet": "No editorial source.",
+        "source": "Moomoo",
+        "published_date": "2026-11-15",
+        "url": "https://www.moomoo.com/community/feed/claim",
+    }]
+
+    output = analyzer._apply_us_market_review_guardrail(
+        "## 2026-11-16 US Market Recap\n\n### 一、盘面总览\nModel text.",
+        MarketOverview(date="2026-11-16"),
+        news,
+    )
+
+    assert "未发现达到 A/B 级标准的新闻来源" in output
+    assert "Community-only claim" not in output
+
