@@ -56,3 +56,22 @@ def test_non_trading_session_never_emits_buy_opportunity(tmp_path, monkeypatch):
     assert row["change_pct"] == -1.0
     assert "不触发入场提醒" in row["action"]
     assert not (tmp_path / "data" / "history.json").exists()
+
+
+def test_report_displays_fund_name_and_code_together(tmp_path, monkeypatch):
+    monkeypatch.setattr(monitor, "OUT", tmp_path / "reports")
+    monkeypatch.setattr(monitor, "HISTORY", tmp_path / "data" / "history.json")
+    monkeypatch.setattr(monitor, "_is_cn_trading_day", lambda now: False)
+    frame = pd.DataFrame([{
+        "代码": "513500", "名称": "简称标普500", "最新价": 2.0,
+        "IOPV实时估值": 2.01, "成交额": 1000000, "涨跌幅": -1.0,
+    }])
+    with patch.object(monitor.ak, "fund_etf_spot_em", return_value=frame):
+        result = monitor.collect()
+    row = next(item for item in result["rows"] if item["code"] == "513500")
+    assert row["name"] == "博时标普500ETF"
+    assert row["display_label"] == "博时标普500ETF（513500）"
+    report = (tmp_path / "reports" / "etf_premium_latest.md").read_text(encoding="utf-8")
+    assert "基金名称（代码）" in report
+    assert "博时标普500ETF（513500）" in report
+    assert "简称标普500" not in report
