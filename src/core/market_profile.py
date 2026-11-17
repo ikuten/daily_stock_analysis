@@ -46,7 +46,7 @@ US_PROFILE = MarketProfile(
     news_queries=[
         "US stock market close Reuters AP Bloomberg",
         "Federal Reserve FOMC Treasury CPI jobs data release",
-        "Nasdaq S&P 500 mega-cap technology earnings Reuters CNBC Financial Times",
+        "Nasdaq-100 NDX S&P 500 mega-cap technology earnings Reuters CNBC Financial Times",
     ],
     prompt_index_hint="分析标普500（S&P 500/SPX）、纳斯达克100指数（Nasdaq-100/NDX）、道指等走势；"
     "必须明确区分纳斯达克100（NDX）与纳斯达克综合指数（Nasdaq Composite/IXIC），"
