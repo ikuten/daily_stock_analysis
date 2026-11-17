@@ -2411,7 +2411,7 @@ Output the report content directly, no extra commentary.
 （{market_summary_hint}）
 
 ### 二、指数结构
-（{self._get_index_hint()}，说明谁在护盘、谁在拖累，以及关键支撑/压力）
+（{self._get_index_hint()}；仅描述同一可用行情日期的指数表现，不推断资金流、支撑/压力或买卖点位）
 
 {output_template_sections}
 
