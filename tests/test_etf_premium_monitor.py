@@ -25,6 +25,20 @@ def test_num_rejects_missing_and_non_positive_values():
     assert monitor._num("—") is None
     assert monitor._num("0") is None
     assert monitor._num("2.345") == 2.345
+    assert monitor._num_signed("-2.35%") == -2.35
+    assert monitor._num_signed("0.00%") == 0.0
+
+
+def test_trading_time_guard_excludes_lunch_and_after_close():
+    from datetime import datetime
+
+    assert monitor._is_cn_trading_time(datetime.fromisoformat("2026-11-17T09:30:00"))
+    assert monitor._is_cn_trading_time(datetime.fromisoformat("2026-11-17T11:30:00"))
+    assert monitor._is_cn_trading_time(datetime.fromisoformat("2026-11-17T13:00:00"))
+    assert monitor._is_cn_trading_time(datetime.fromisoformat("2026-11-17T15:00:00"))
+    assert not monitor._is_cn_trading_time(datetime.fromisoformat("2026-11-17T09:29:00"))
+    assert not monitor._is_cn_trading_time(datetime.fromisoformat("2026-11-17T12:00:00"))
+    assert not monitor._is_cn_trading_time(datetime.fromisoformat("2026-11-17T15:01:00"))
 
 
 def test_non_trading_session_never_emits_buy_opportunity(tmp_path, monkeypatch):
