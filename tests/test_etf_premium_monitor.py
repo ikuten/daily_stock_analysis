@@ -44,7 +44,7 @@ def test_trading_time_guard_excludes_lunch_and_after_close():
 def test_non_trading_session_never_emits_buy_opportunity(tmp_path, monkeypatch):
     monkeypatch.setattr(monitor, "OUT", tmp_path / "reports")
     monkeypatch.setattr(monitor, "HISTORY", tmp_path / "data" / "history.json")
-    monkeypatch.setattr(monitor, "_is_cn_session", lambda now: False)
+    monkeypatch.setattr(monitor, "_is_cn_trading_day", lambda now: False)
     frame = pd.DataFrame([{
         "代码": "513500", "名称": "博时标普500ETF", "最新价": 2.0,
         "IOPV实时估值": 2.01, "成交额": 1000000, "涨跌幅": -1.0,
@@ -53,5 +53,6 @@ def test_non_trading_session_never_emits_buy_opportunity(tmp_path, monkeypatch):
         result = monitor.collect()
     row = next(item for item in result["rows"] if item["code"] == "513500")
     assert row["premium_pct"] is not None
+    assert row["change_pct"] == -1.0
     assert "不触发入场提醒" in row["action"]
     assert not (tmp_path / "data" / "history.json").exists()
