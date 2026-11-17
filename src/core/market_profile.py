@@ -44,9 +44,9 @@ US_PROFILE = MarketProfile(
     region="us",
     mood_index_code="SPX",
     news_queries=[
-        "美股 大盘 宏观 美联储 国债收益率",
-        "Nasdaq-100 NDX index market news",
-        "S&P 500 SPX index market news",
+        "US stock market close Reuters AP Bloomberg",
+        "Federal Reserve FOMC Treasury CPI jobs data release",
+        "Nasdaq S&P 500 mega-cap technology earnings Reuters CNBC Financial Times",
     ],
     prompt_index_hint="分析标普500（S&P 500/SPX）、纳斯达克100指数（Nasdaq-100/NDX）、道指等走势；"
     "必须明确区分纳斯达克100（NDX）与纳斯达克综合指数（Nasdaq Composite/IXIC），"
