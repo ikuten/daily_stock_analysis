@@ -52,7 +52,7 @@ AI 股因某机构报告下跌。
             "snippet": "The minutes discuss the policy outlook.",
             "source": "Reuters",
             "published_date": "2026-11-15",
-            "url": "https://example.com/fed-minutes",
+            "url": "https://www.reuters.com/world/us/fed-minutes-2026-11-15/",
         }
     ]
     overview = MarketOverview(
@@ -73,7 +73,7 @@ AI 股因某机构报告下跌。
     assert "最新可用值 20.12" in output
     assert "Reuters" in output
     assert "2026-11-15" in output
-    assert "https://example.com/fed-minutes" in output
+    assert "https://www.reuters.com/world/us/fed-minutes-2026-11-15/" in output
     assert "不代表这些事件已被证实为指数涨跌原因" in output
     assert "模型生成的指数点评" not in output
     assert "| Index | Last | Change % |" in output
@@ -122,7 +122,7 @@ def test_us_market_recap_guardrail_handles_template_fallback_section_five():
             "snippet": "The committee discussed its policy outlook.",
             "source": "Federal Reserve",
             "published_date": "2026-11-15",
-            "url": "https://example.com/minutes",
+            "url": "https://www.federalreserve.gov/monetary20261115a.htm",
         }
     ]
 
@@ -181,7 +181,7 @@ def test_us_market_recap_guardrail_handles_emoji_headings_and_quote_dates():
         "snippet": "A retrieved source discusses the policy outlook.",
         "source": "Reuters",
         "published_date": "2026-11-15",
-        "url": "https://example.com/dated-news",
+        "url": "https://www.reuters.com/markets/us/dated-news-2026-11-15/",
     }]
     overview = MarketOverview(
         date="2026-11-16",
@@ -207,7 +207,7 @@ def test_us_market_recap_guardrail_handles_emoji_headings_and_quote_dates():
     assert "模型生成的指数点评" not in output
     assert "Reuters" in output
     assert "2026-11-15" in output
-    assert "https://example.com/dated-news" in output
+    assert "https://www.reuters.com/markets/us/dated-news-2026-11-15/" in output
     assert "不提供组合仓位比例" in output
     assert "美债收益率上升导致科技股下跌" not in output
     assert "新闻只作为背景线索" in output
