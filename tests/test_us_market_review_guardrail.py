@@ -146,6 +146,8 @@ def test_us_market_recap_guardrail_handles_emoji_headings_and_quote_dates():
 
 > 今日美股科技领跌，某新闻导致纳指下跌，后续关注支撑买盘。
 
+模型又补充了一段没有来源的导语，声称科技股资金正在流出。
+
 ### 一、盘面总览 🌐
 模型生成的市场判断仍包含未经核实的因果关系。
 - **操作建议**：信号分化，控制仓位并等待量价确认。
@@ -191,6 +193,7 @@ def test_us_market_recap_guardrail_handles_emoji_headings_and_quote_dates():
     assert "行情日期：2026-11-13" in output
     assert "报告生成日期：2026-11-16" in output
     assert "今日美股科技领跌" not in output
+    assert "模型又补充了一段没有来源的导语" not in output
     assert "某新闻导致纳指下跌" not in output
     assert "控制仓位并等待量价确认" not in output
     assert "支撑买盘" not in output
