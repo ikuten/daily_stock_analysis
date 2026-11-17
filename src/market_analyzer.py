@@ -72,6 +72,7 @@ class MarketIndex:
     volume: float = 0.0          # 成交量（手）
     amount: float = 0.0          # 成交额（元）
     amplitude: float = 0.0       # 振幅(%)
+    quote_date: str = ""         # 行情 K 线实际日期（与报告生成日期可能不同）
     
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -86,6 +87,7 @@ class MarketIndex:
             'volume': self.volume,
             'amount': self.amount,
             'amplitude': self.amplitude,
+            'quote_date': self.quote_date,
         }
 
 
@@ -608,7 +610,8 @@ Focus on index trend, liquidity, and sector rotation to shape the next-session t
                         prev_close=item['prev_close'],
                         volume=item['volume'],
                         amount=item['amount'],
-                        amplitude=item['amplitude']
+                        amplitude=item['amplitude'],
+                        quote_date=str(item.get('quote_date') or item.get('trade_date') or item.get('date') or ''),
                     )
                     indices.append(index)
 
@@ -935,16 +938,45 @@ Focus on index trend, liquidity, and sector rotation to shape the next-session t
 
         # The report date is not necessarily the quote's trading date, especially
         # before the US regular session or on a market holiday.
-        timing_note = (
-            "> Quote timing: figures below are the latest available source values; the report date is not necessarily the market trading date. During pre-market or holidays, use the latest completed session."
-            if english
-            else "> 行情时点：以下为本次抓取到的最新可用行情；报告日期不等于行情交易日期。美股盘前或休市时段，应以最近一个完整交易日为准。"
-        )
+        quote_dates = sorted({
+            str(getattr(item, "quote_date", "") or "").strip()
+            for item in (getattr(overview, "indices", None) or [])
+            if str(getattr(item, "quote_date", "") or "").strip()
+        })
+        if len(quote_dates) == 1:
+            quote_date = quote_dates[0]
+            timing_note = (
+                f"> Quote date: {quote_date}; report date: {overview.date}. Values use the latest available Yahoo Finance session."
+                if english
+                else f"> 行情日期：{quote_date}；报告生成日期：{overview.date}。以下点位对应行情源最新可用交易日。"
+            )
+        elif len(quote_dates) > 1:
+            dates_text = ", ".join(quote_dates)
+            timing_note = (
+                f"> Quote dates differ across indices ({dates_text}); do not compare them as a same-session snapshot. Report date: {overview.date}."
+                if english
+                else f"> 各指数行情日期不一致（{dates_text}），不可按同一交易日横向比较；报告生成日期：{overview.date}。"
+            )
+        else:
+            timing_note = (
+                "> Quote timing: figures below are the latest available source values; the report date is not necessarily the market trading date. During pre-market or holidays, use the latest completed session."
+                if english
+                else "> 行情时点：以下为本次抓取到的最新可用行情；报告日期不等于行情交易日期。美股盘前或休市时段，应以最近一个完整交易日为准。"
+            )
         lines = text.splitlines()
         if lines and lines[0].lstrip().startswith("#"):
             lines.insert(1, "")
             lines.insert(2, timing_note)
             text = "\n".join(lines)
+
+        first_section = re.search(r"(?m)^###\s", text)
+        if first_section:
+            prefix = text[:first_section.start()]
+            prefix_lines = [
+                line for line in prefix.splitlines()
+                if not (line.strip().startswith(">") and line.strip() != timing_note)
+            ]
+            text = "\n".join(prefix_lines).rstrip() + "\n\n" + text[first_section.start():]
 
         # Rebuild the market summary and index commentary from the structured
         # snapshot. This removes model-invented causal narratives and signal scores.
@@ -1034,35 +1066,35 @@ Focus on index trend, liquidity, and sector rotation to shape the next-session t
 
         if english:
             _replace_section(
-                r"(?ms)^###\s*1\.\s*Market Summary\s*\n.*?(?=^###\s|\Z)",
+                r"(?ms)^###\s*1\.\s*Market Summary[^\n]*\n.*?(?=^###\s|\Z)",
                 "### 1. Market Summary",
                 summary_body + "\n\nThe summary is descriptive only; it does not attribute index moves to news or provide ETF trading instructions.",
             )
             _replace_section(
-                r"(?ms)^###\s*2\.\s*(?:Index Commentary|Major Indices)\s*\n.*?(?=^###\s|\Z)",
+                r"(?ms)^###\s*2\.\s*(?:Index Commentary|Major Indices)[^\n]*\n.*?(?=^###\s|\Z)",
                 "### 2. Index Commentary",
                 index_body + "\n\nAll figures refer to the latest available source snapshot.",
                 preserve_table=True,
             )
             _replace_section(
-                r"(?ms)^###\s*4\.\s*(?:Outlook|Market Outlook)\s*\n.*?(?=^###\s|\Z)",
+                r"(?ms)^###\s*4\.\s*(?:Outlook|Market Outlook)[^\n]*\n.*?(?=^###\s|\Z)",
                 "### 4. Outlook",
                 "- Compare SPX, NDX, IXIC, and DJI using the same completed trading session.\n- Monitor the subsequent VIX direction; a single reading is not a trend.\n- Discuss macro/news implications only when supported by dated sources; do not infer causation.",
             )
         else:
             _replace_section(
-                r"(?ms)^###\s*一、(?:盘面总览|市场总结)\s*\n.*?(?=^###\s|\Z)",
+                r"(?ms)^###\s*一、(?:盘面总览|市场总结)[^\n]*\n.*?(?=^###\s|\Z)",
                 "### 一、盘面总览",
                 summary_body + "\n\n以上仅描述行情快照，不对涨跌原因作因果归因，也不构成 ETF 买卖指令。",
             )
             _replace_section(
-                r"(?ms)^###\s*二、(?:指数结构|指数点评|主要指数)\s*\n.*?(?=^###\s|\Z)",
+                r"(?ms)^###\s*二、(?:指数结构|指数点评|主要指数)[^\n]*\n.*?(?=^###\s|\Z)",
                 "### 二、指数结构",
                 index_body + "\n\n以下为同一报告数据源提供的最新可用指数快照。",
                 preserve_table=True,
             )
             _replace_section(
-                r"(?ms)^###\s*四、(?:后市观察|展望)\s*\n.*?(?=^###\s|\Z)",
+                r"(?ms)^###\s*四、(?:后市观察|展望)[^\n]*\n.*?(?=^###\s|\Z)",
                 "### 四、后市观察",
                 "- 对照 SPX、NDX、IXIC 和 DJI 在同一完整交易日的方向，观察指数间分化是否持续。\n- 观察 VIX 后续变化；单一时点读数不能单独代表风险趋势。\n- 宏观与新闻只引用带来源和日期的信息，不将其直接归因于指数涨跌。",
             )
@@ -1104,17 +1136,17 @@ Focus on index trend, liquidity, and sector rotation to shape the next-session t
                 "or fund-flow data. Net inflows/outflows and market participation cannot be assessed. VIX is a volatility measure, not a fund-flow measure."
             )
             _replace_section(
-                r"(?ms)^###\s*3\.\s*Breadth & Liquidity\s*\n.*?(?=^###\s|\Z)",
+                r"(?ms)^###\s*3\.\s*Breadth & Liquidity[^\n]*\n.*?(?=^###\s|\Z)",
                 "### 3. Breadth & Liquidity",
                 "Market breadth, consolidated turnover, and fund flows are unavailable in the supplied data; no conclusion is made.",
             )
             _replace_section(
-                r"(?ms)^###\s*4\.\s*Sector / Theme Highlights\s*\n.*?(?=^###\s|\Z)",
+                r"(?ms)^###\s*4\.\s*Sector / Theme Highlights[^\n]*\n.*?(?=^###\s|\Z)",
                 "### 4. Sector / Theme Highlights",
                 sector_body,
             )
             _replace_section(
-                r"(?ms)^###\s*4\.\s*Funds & Sentiment\s*\n.*?(?=^###\s|\Z)",
+                r"(?ms)^###\s*4\.\s*Funds & Sentiment[^\n]*\n.*?(?=^###\s|\Z)",
                 "### 4. Funds & Sentiment",
                 funds_body,
             )
@@ -1133,12 +1165,12 @@ Focus on index trend, liquidity, and sector rotation to shape the next-session t
                 "无法判断市场宽度及资金净流入/流出。VIX 反映波动率，不等同于资金流向。"
             )
             _replace_section(
-                r"(?ms)^###\s*三、(?:板块主线|热点解读|板块表现)\s*\n.*?(?=^###\s|\Z)",
+                r"(?ms)^###\s*三、(?:板块主线|热点解读|板块表现)[^\n]*\n.*?(?=^###\s|\Z)",
                 "### 三、板块主线",
                 sector_body,
             )
             _replace_section(
-                r"(?ms)^###\s*四、(?:资金与情绪|资金动向)\s*\n.*?(?=^###\s|\Z)",
+                r"(?ms)^###\s*四、(?:资金与情绪|资金动向)[^\n]*\n.*?(?=^###\s|\Z)",
                 "### 四、资金与情绪",
                 funds_body,
             )
@@ -1179,8 +1211,8 @@ Focus on index trend, liquidity, and sector rotation to shape the next-session t
                 "### Data Boundaries\n"
                 "The supplied US index dataset does not establish volume, turnover, PE/valuation, market breadth, or capital flows unless those fields are explicitly present. Missing values remain unknown. News claims must be traceable to the dated source items above."
             )
-            news_pattern = r"(?ms)^###\s*(?:3\.\s*News Catalysts|5\.\s*News Catalysts|V\.\s*News Catalysts)\s*\n.*?(?=^###\s|\Z)"
-            strategy_pattern = r"(?ms)^###\s*(?:6\.\s*Strategy Plan|VI\.\s*Strategy Framework)\s*\n.*?(?=^###\s|\Z)"
+            news_pattern = r"(?ms)^###\s*(?:3\.\s*News Catalysts|5\.\s*News Catalysts|V\.\s*News Catalysts)[^\n]*\n.*?(?=^###\s|\Z)"
+            strategy_pattern = r"(?ms)^###\s*(?:6\.\s*Strategy Plan|VI\.\s*Strategy Framework)[^\n]*\n.*?(?=^###\s|\Z)"
             news_heading = "### 3. News Catalysts"
             strategy_heading = "### 6. Strategy Plan"
         else:
@@ -1199,8 +1231,8 @@ Focus on index trend, liquidity, and sector rotation to shape the next-session t
                 "### 数据边界\n"
                 "除非输入明确提供对应字段，否则不能判断成交量、成交额、PE/估值、市场宽度或资金流。缺失数据代表未知。新闻结论必须能追溯到上方带日期和来源的检索结果。"
             )
-            news_pattern = r"(?ms)^###\s*(?:三、|五、)(?:消息催化|后市展望)\s*\n.*?(?=^###\s|\Z)"
-            strategy_pattern = r"(?ms)^###\s*六、(?:策略判断|策略框架)\s*\n.*?(?=^###\s|\Z)"
+            news_pattern = r"(?ms)^###\s*(?:三、|五、)(?:消息催化|后市展望)[^\n]*\n.*?(?=^###\s|\Z)"
+            strategy_pattern = r"(?ms)^###\s*六、(?:策略判断|策略框架)[^\n]*\n.*?(?=^###\s|\Z)"
             news_heading = "### 三、消息催化"
             strategy_heading = "### 六、策略判断"
 
