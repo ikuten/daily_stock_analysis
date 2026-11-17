@@ -972,10 +972,15 @@ Focus on index trend, liquidity, and sector rotation to shape the next-session t
         first_section = re.search(r"(?m)^###\s", text)
         if first_section:
             prefix = text[:first_section.start()]
-            prefix_lines = [
-                line for line in prefix.splitlines()
-                if not (line.strip().startswith(">") and line.strip() != timing_note)
-            ]
+            # Keep only the document title and the deterministic quote-date note.
+            # Model-generated prose before the first section is otherwise unbounded.
+            title_line = next(
+                (line for line in prefix.splitlines() if line.lstrip().startswith("#")),
+                "",
+            )
+            prefix_lines = [title_line] if title_line else []
+            if timing_note in prefix.splitlines():
+                prefix_lines.extend(["", timing_note])
             text = "\n".join(prefix_lines).rstrip() + "\n\n" + text[first_section.start():]
 
         # Rebuild the market summary and index commentary from the structured
