@@ -200,3 +200,5 @@ def test_us_market_recap_guardrail_handles_emoji_headings_and_quote_dates():
     assert "2026-11-15" in output
     assert "https://example.com/dated-news" in output
     assert "不提供组合仓位比例" in output
+    assert "美债收益率上升导致科技股下跌" not in output
+    assert "新闻只作为背景线索" in output
