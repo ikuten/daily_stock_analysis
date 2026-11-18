@@ -158,3 +158,14 @@ def test_historical_replay_is_explicitly_official_nav_not_iopv(monkeypatch, tmp_
     report = (tmp_path / "reports" / "etf_premium_history_replay_20261117.md").read_text(encoding="utf-8")
     assert "博时标普500ETF（513500）" in report
     assert "历史复盘" in report
+
+
+def test_quote_timestamp_rejects_future_quote_relative_to_observation_time():
+    observed_at = pd.Timestamp("2026-11-18T09:31:00+08:00").to_pydatetime()
+    future = monitor._quote_timestamp_meta({
+        "数据日期": "2026-11-18",
+        "更新时间": "2026-11-18 09:31:01+08:00",
+    }, observed_at)
+    assert future["fresh"] is False
+    assert future["age_seconds"] == -1.0
+    assert "晚于本次采集观察时间" in future["reason"]
