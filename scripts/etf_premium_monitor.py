@@ -208,7 +208,7 @@ def collect():
 
     # Store only a verified China-market session snapshot, so non-trading days
     # and failed/empty responses cannot pollute the 1/5/20-session history.
-    if result["is_trading_session"] and result["rows"] and not result["errors"]:
+    if result["is_trading_session"] and any(item["instrument_type"] == "ETF" and item["premium_pct"] is not None for item in result["rows"]) and not result["errors"]:
         previous = []
         if HISTORY.exists():
             try:
