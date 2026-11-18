@@ -227,7 +227,7 @@ def replay_historical_nav(target_date):
     }
     json_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
     lines = [
-        f"# 场内纳指/标普基金历史溢价复盘（{target_date}）", "",
+        f"# 场内纳指/标普基金历史复盘（{target_date}）", "",
         "**口径说明：收盘价与同日官方单位净值比较，是事后复盘口径，不是盘中实时IOPV溢价，不产生实时入场提醒。**", "",
         "| 基金名称（代码） | 产品类型 | 收盘价 | 同日官方NAV | NAV日期 | NAV溢价 | 数据状态 |",
         "|---|---|---:|---:|---|---:|---|",
