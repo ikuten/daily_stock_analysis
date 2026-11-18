@@ -124,8 +124,8 @@ def _quote_timestamp_meta(row, now):
         if quote_date != now.date():
             reason = f"行情数据日期为{quote_date.isoformat()}，不是当前交易日"
             fresh = False
-        elif age_seconds < -30:
-            reason = "行情源时间晚于当前时间，疑似时钟异常"
+        elif age_seconds < 0:
+            reason = "行情源时间晚于本次采集观察时间，疑似时钟异常"
             fresh = False
         elif age_seconds > MAX_QUOTE_AGE_SECONDS:
             reason = f"行情已过期{int(age_seconds)}秒，超过{MAX_QUOTE_AGE_SECONDS}秒阈值"
@@ -270,6 +270,10 @@ def collect():
     }
     try:
         frame = ak.fund_etf_spot_em()
+        # Record the observation clock AFTER the upstream request returns.
+        # Capturing datetime.now() before the HTTP request can make a valid
+        # exchange quote appear to be in the future by the request latency.
+        etf_observed_at = datetime.now(TZ)
         if frame is None or frame.empty:
             raise RuntimeError("AkShare returned an empty ETF spot table")
         frame["代码"] = frame["代码"].astype(str).str.zfill(6)
@@ -302,7 +306,7 @@ def collect():
                 })
                 continue
             row = by_code.loc[code]
-            quote_meta = _quote_timestamp_meta(row, now)
+            quote_meta = _quote_timestamp_meta(row, etf_observed_at)
             price = _num(row.get("最新价"))
             iopv = _num(row.get("IOPV实时估值"))
             premium = ((price / iopv) - 1) * 100 if price and iopv and quote_meta["fresh"] else None
@@ -383,6 +387,9 @@ def collect():
                 "status": "LOF行情获取失败",
                 "action": "不判断，不触发入场提醒",
             })
+
+    # generated_at is the completed collection time, not request start time.
+    result["generated_at"] = datetime.now(TZ).isoformat()
 
     # Every consumer gets one unambiguous human-readable identifier.
     for item in result["rows"]:
