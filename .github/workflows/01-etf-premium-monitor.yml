@@ -1,6 +1,13 @@
 name: 场内纳指标普ETF溢价监控
 
 on:
+  # 合并监控代码到 main 后立即触发一次盘中验证；只监听监控代码/工作流/测试变更。
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/etf_premium_monitor.py'
+      - '.github/workflows/01-etf-premium-monitor.yml'
+      - 'tests/test_etf_premium_monitor.py'
   # 新加坡/北京时间：09:30开盘、10:00/11:00、13:00/14:00、15:00收盘
   # GitHub cron 使用 UTC。周末不运行；法定节假日由交易日历检查并禁止触发机会提醒。
   schedule:
@@ -8,6 +15,19 @@ on:
     - cron: '0 2-3,5-6 * * 1-5'  # 10:00/11:00、13:00/14:00、15:00
     - cron: '0 7 * * 1-5'      # 15:00收盘，保存当日最终快照
   workflow_dispatch:
+    inputs:
+      mode:
+        description: '运行模式'
+        required: true
+        default: 'live'
+        type: choice
+        options:
+          - live
+          - historical_nav_review
+      as_of_date:
+        description: '历史复盘日期 YYYY-MM-DD（仅 historical_nav_review 使用）'
+        required: false
+        type: string
 
 permissions:
   contents: write
@@ -35,8 +55,20 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install 'akshare>=1.12.0,<1.20.0' 'pandas>=2.0.0' 'exchange-calendars>=4.13.0'
-      - name: 采集场内ETF实时IOPV溢价
-        run: python scripts/etf_premium_monitor.py
+      - name: 采集场内ETF实时IOPV溢价或历史NAV复盘
+        env:
+          MONITOR_MODE: ${{ inputs.mode || 'live' }}
+          AS_OF_DATE: ${{ inputs.as_of_date || '' }}
+        run: |
+          if [[ "$MONITOR_MODE" == "historical_nav_review" ]]; then
+            if [[ ! "$AS_OF_DATE" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]]; then
+              echo "historical_nav_review requires AS_OF_DATE=YYYY-MM-DD" >&2
+              exit 2
+            fi
+            python scripts/etf_premium_monitor.py --as-of-date "$AS_OF_DATE"
+          else
+            python scripts/etf_premium_monitor.py
+          fi
       - name: 保存最近30个交易日溢价历史
         if: success() && github.event_name == 'schedule' && github.event.schedule == '0 7 * * 1-5'
         run: |
@@ -57,6 +89,7 @@ jobs:
           path: |
             reports/etf_premium_latest.json
             reports/etf_premium_latest.md
+            reports/etf_premium_history_replay_*
             data/etf_premium_history.json
           if-no-files-found: warn
           retention-days: 30
