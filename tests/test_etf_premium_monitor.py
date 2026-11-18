@@ -49,8 +49,12 @@ def test_non_trading_session_never_emits_buy_opportunity(tmp_path, monkeypatch):
         "代码": "513500", "名称": "博时标普500ETF", "最新价": 2.0,
         "IOPV实时估值": 2.01, "成交额": 1000000, "涨跌幅": -1.0,
     }])
+    monkeypatch.setattr(monitor, "_quote_timestamp_meta", lambda row, now: {
+        "timestamp": None, "age_seconds": None, "fresh": True, "reason": "mock fresh quote"
+    })
     with patch.object(monitor.ak, "fund_etf_spot_em", return_value=frame):
-        result = monitor.collect()
+        with patch.object(monitor.ak, "fund_lof_spot_em", return_value=pd.DataFrame()):
+            result = monitor.collect()
     row = next(item for item in result["rows"] if item["code"] == "513500")
     assert row["premium_pct"] is not None
     assert row["change_pct"] == -1.0
@@ -67,7 +71,8 @@ def test_report_displays_fund_name_and_code_together(tmp_path, monkeypatch):
         "IOPV实时估值": 2.01, "成交额": 1000000, "涨跌幅": -1.0,
     }])
     with patch.object(monitor.ak, "fund_etf_spot_em", return_value=frame):
-        result = monitor.collect()
+        with patch.object(monitor.ak, "fund_lof_spot_em", return_value=pd.DataFrame()):
+            result = monitor.collect()
     row = next(item for item in result["rows"] if item["code"] == "513500")
     assert row["name"] == "博时标普500ETF"
     assert row["display_label"] == "博时标普500ETF（513500）"
@@ -121,9 +126,9 @@ def test_lof_is_not_treated_as_etf_iopv(monkeypatch, tmp_path):
         "代码": "161125", "名称": "易方达标普500LOF", "最新价": 1.8,
         "成交额": 500000,
     }])
-    with patch.object(monitor.ak, "fund_etf_spot_em", return_value=etf_frame), \\
-         patch.object(monitor.ak, "fund_lof_spot_em", return_value=lof_frame):
-        result = monitor.collect()
+    with patch.object(monitor.ak, "fund_etf_spot_em", return_value=etf_frame):
+        with patch.object(monitor.ak, "fund_lof_spot_em", return_value=lof_frame):
+            result = monitor.collect()
 
     lof = next(row for row in result["rows"] if row["code"] == "161125")
     assert lof["instrument_type"] == "LOF"
@@ -136,8 +141,6 @@ def test_lof_is_not_treated_as_etf_iopv(monkeypatch, tmp_path):
 
 
 def test_historical_replay_is_explicitly_official_nav_not_iopv(monkeypatch, tmp_path):
-    from datetime import date
-
     monkeypatch.setattr(monitor, "OUT", tmp_path / "reports")
     monkeypatch.setattr(monitor, "_is_cn_trading_day", lambda now: True)
     monkeypatch.setattr(monitor, "WATCH", {
