@@ -169,3 +169,42 @@ def test_quote_timestamp_rejects_future_quote_relative_to_observation_time():
     assert future["fresh"] is False
     assert future["age_seconds"] == -1.0
     assert "晚于本次采集观察时间" in future["reason"]
+
+
+
+def test_same_day_nav_fetch_falls_back_to_supported_open_fund_api(monkeypatch):
+    calls = []
+
+    def empty_nav(**kwargs):
+        return pd.DataFrame()
+
+    def open_fund_nav(**kwargs):
+        calls.append(kwargs)
+        return pd.DataFrame([
+            {"净值日期": "2026-11-17", "单位净值": 2.3550},
+        ])
+
+    monkeypatch.setattr(monitor.ak, "fund_exchange_nav_hist_em", empty_nav, raising=False)
+    monkeypatch.setattr(monitor.ak, "fund_etf_fund_info_em", empty_nav, raising=False)
+    monkeypatch.setattr(monitor.ak, "fund_open_fund_info_em", open_fund_nav, raising=False)
+
+    nav = monitor._fetch_same_day_official_nav("513500", pd.Timestamp("2026-11-17").date())
+    assert nav == 2.355
+    assert calls == [{"symbol": "513500", "indicator": "单位净值走势"}]
+
+
+def test_same_day_nav_fetch_never_substitutes_previous_day_nav(monkeypatch):
+    def empty_nav(**kwargs):
+        return pd.DataFrame()
+
+    def previous_day_nav(**kwargs):
+        return pd.DataFrame([
+            {"净值日期": "2026-11-16", "单位净值": 2.4012},
+        ])
+
+    monkeypatch.setattr(monitor.ak, "fund_exchange_nav_hist_em", empty_nav, raising=False)
+    monkeypatch.setattr(monitor.ak, "fund_etf_fund_info_em", empty_nav, raising=False)
+    monkeypatch.setattr(monitor.ak, "fund_open_fund_info_em", previous_day_nav, raising=False)
+
+    nav = monitor._fetch_same_day_official_nav("513500", pd.Timestamp("2026-11-17").date())
+    assert nav is None
