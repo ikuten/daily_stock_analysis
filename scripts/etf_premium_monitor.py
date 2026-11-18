@@ -227,7 +227,7 @@ def replay_historical_nav(target_date):
         try:
             nav = _fetch_same_day_official_nav(code, target_day)
             if nav is None:
-                status.append("缺少同日官方单位净值")
+                status.append("未取得同日官方NAV（不以其他日期净值替代）")
         except Exception as exc:
             errors.append(f"{code}官方净值：{type(exc).__name__}: {exc}")
             status.append("官方净值获取失败")
@@ -247,16 +247,22 @@ def replay_historical_nav(target_date):
     OUT.mkdir(parents=True, exist_ok=True)
     json_path = OUT / f"etf_premium_history_replay_{target_day:%Y%m%d}.json"
     md_path = OUT / f"etf_premium_history_replay_{target_day:%Y%m%d}.md"
+    valid_nav_rows = sum(row["nav_premium_pct"] is not None for row in rows)
     payload = {
         "as_of_date": target_date, "mode": "historical_close_vs_official_nav",
         "source": "AkShare/Eastmoney daily fund quotes and official NAV history",
-        "note": "Ex-post daily close vs same-day official NAV; not intraday IOPV and not a real-time trading alert.",
+        "note": "Ex-post daily close vs same-day official NAV; not intraday IOPV and not a real-time trading alert. Missing same-day NAV is never filled with a prior-day value.",
+        "valid_nav_rows": valid_nav_rows,
+        "missing_nav_rows": len(rows) - valid_nav_rows,
         "rows": rows, "errors": errors,
     }
     json_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
     lines = [
         f"# 场内纳指/标普基金历史复盘（{target_date}）", "",
-        "**口径说明：收盘价与同日官方单位净值比较，是事后复盘口径，不是盘中实时IOPV溢价，不产生实时入场提醒。**", "",
+        "**口径说明：收盘价与同日官方单位净值比较，是事后复盘口径，不是盘中实时IOPV溢价，不产生实时入场提醒。**",
+        f"- 同日官方NAV可核验：{valid_nav_rows}/{len(rows)} 只基金。",
+        "- 未取得同日NAV的记录不会以前一交易日净值补齐；可能是目标日净值尚未披露，也可能是数据源未返回。",
+        "",
         "| 基金名称（代码） | 产品类型 | 收盘价 | 同日官方NAV | NAV日期 | NAV溢价 | 数据状态 |",
         "|---|---|---:|---:|---|---:|---|",
     ]
@@ -268,7 +274,7 @@ def replay_historical_nav(target_date):
     if errors:
         lines += ["", "## 数据错误", *[f"- {error}" for error in errors]]
     md_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
-    print(json.dumps({"mode": payload["mode"], "as_of_date": target_date, "rows": len(rows), "valid_nav_rows": sum(row["nav_premium_pct"] is not None for row in rows), "errors": errors}, ensure_ascii=False))
+    print(json.dumps({"mode": payload["mode"], "as_of_date": target_date, "rows": len(rows), "valid_nav_rows": valid_nav_rows, "missing_nav_rows": len(rows) - valid_nav_rows, "errors": errors}, ensure_ascii=False))
     return payload
 
 
